@@ -1,4 +1,4 @@
-const CACHE_NAME = "abc-pronunciation-v2";
+const CACHE_NAME = "abc-pronunciation-v3";
 const ASSETS = [
   "./index.html",
   "./style.css",

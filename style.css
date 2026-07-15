@@ -599,3 +599,107 @@ body {
 }
 
 .btn-record:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; }
+
+/* ══════ Mistake Book ══════ */
+.menu-card-mistakes {
+  position: relative;
+}
+.mistake-badge {
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.mistakes-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-light);
+}
+.mistakes-empty-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+.mistakes-empty-text {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.mistakes-section {
+  width: 100%;
+  margin-bottom: 24px;
+}
+.mistakes-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.mistakes-section-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.mistakes-section-count {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  background: #e8edf5;
+  padding: 4px 10px;
+  border-radius: 10px;
+}
+
+.mistake-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mistake-tag {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mistake-tag .tag-emoji {
+  font-size: 1.3rem;
+}
+
+.btn-practice-mistakes {
+  background: var(--warning);
+  color: #fff;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 50px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+  margin-top: 8px;
+}
+.btn-practice-mistakes:active { transform: scale(0.97); }
+
+.btn-clear-mistakes {
+  background: none;
+  border: 1px solid #ddd;
+  color: var(--text-light);
+  padding: 10px 20px;
+  border-radius: 50px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.btn-clear-mistakes:active { background: #f5f5f5; }
