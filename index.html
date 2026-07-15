@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ABC Pronunciation Practice</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 首页: 选择字母 -->
+    <div id="screen-home" class="screen active">
+      <div class="header">
+        <h1>🔤 ABC 发音练习</h1>
+        <p class="subtitle">点击一个字母开始练习吧！</p>
+      </div>
+      <div id="letter-grid" class="letter-grid"></div>
+    </div>
+
+    <!-- 练习页 -->
+    <div id="screen-practice" class="screen">
+      <div class="practice-header">
+        <button id="btn-back" class="btn-back" aria-label="返回">← 返回</button>
+        <div id="progress-bar" class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- 步骤1: 字母发音 -->
+      <div id="step-letter" class="step">
+        <p class="step-label">先听字母的发音</p>
+        <div id="current-letter" class="big-letter"></div>
+        <button id="btn-play-letter" class="btn-play" aria-label="播放字母发音">
+          🔊 听一听
+        </button>
+        <button id="btn-next-to-word" class="btn-primary">
+          我听到了！下一步 →
+        </button>
+      </div>
+
+      <!-- 步骤2: 单词练习 -->
+      <div id="step-word" class="step" style="display:none">
+        <p class="step-label">现在练习这个单词</p>
+        <div class="word-card">
+          <div id="word-emoji" class="word-emoji"></div>
+          <div id="word-text" class="word-text"></div>
+          <button id="btn-play-word" class="btn-play" aria-label="播放单词发音">
+            🔊 听一听
+          </button>
+        </div>
+        <button id="btn-record" class="btn-record">
+          <span class="mic-icon">🎤</span>
+          <span id="record-label">按住说话</span>
+        </button>
+        <div id="recording-indicator" class="recording-indicator" style="display:none">
+          <div class="pulse-ring"></div>
+          <p>正在听你说...</p>
+        </div>
+        <div id="score-display" class="score-display" style="display:none">
+          <div id="score-stars" class="score-stars"></div>
+          <p id="score-message" class="score-message"></p>
+          <button id="btn-retry-word" class="btn-secondary">再试一次 🔄</button>
+          <button id="btn-next-word" class="btn-primary">下一个 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结果页 -->
+    <div id="screen-result" class="screen">
+      <div class="result-container">
+        <h2 id="result-title" class="result-title"></h2>
+        <div id="result-summary" class="result-summary"></div>
+        <div id="result-buttons" class="result-buttons"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

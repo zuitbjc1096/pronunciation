@@ -1,0 +1,437 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary: #4a90d9;
+  --primary-dark: #3a7bc8;
+  --success: #4caf50;
+  --warning: #ff9800;
+  --danger: #f44336;
+  --bg: #f0f4ff;
+  --card-bg: #ffffff;
+  --text: #333;
+  --text-light: #666;
+  --radius: 16px;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+body {
+  font-family: "SF Pro Rounded", "Nunito", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Screens */
+.screen {
+  display: none;
+  padding: 20px;
+  max-width: 500px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+.screen.active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Home screen */
+.header {
+  text-align: center;
+  padding: 30px 0 20px;
+}
+.header h1 {
+  font-size: 2rem;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.subtitle {
+  font-size: 1.1rem;
+  color: var(--text-light);
+}
+
+/* Letter grid */
+.letter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0 40px;
+}
+.letter-btn {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.letter-btn:active {
+  transform: scale(0.95);
+}
+.letter-btn .letter-label {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+.letter-btn .letter-status {
+  font-size: 0.7rem;
+  margin-top: 4px;
+}
+.letter-btn.completed {
+  opacity: 0.8;
+}
+.letter-btn.completed .letter-status::after {
+  content: "✅";
+}
+
+/* Letter color palette */
+.letter-btn[data-color="0"] { background: #ff6b6b; color: #fff; }
+.letter-btn[data-color="1"] { background: #ff9f43; color: #fff; }
+.letter-btn[data-color="2"] { background: #feca57; color: #333; }
+.letter-btn[data-color="3"] { background: #48dbfb; color: #333; }
+.letter-btn[data-color="4"] { background: #54a0ff; color: #fff; }
+.letter-btn[data-color="5"] { background: #5f27cd; color: #fff; }
+.letter-btn[data-color="6"] { background: #01a3a4; color: #fff; }
+.letter-btn[data-color="7"] { background: #ff6348; color: #fff; }
+.letter-btn[data-color="8"] { background: #2ed573; color: #fff; }
+.letter-btn[data-color="9"] { background: #a55eea; color: #fff; }
+
+/* Practice header */
+.practice-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0 20px;
+}
+.btn-back {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-back:hover {
+  background: rgba(74, 144, 217, 0.1);
+}
+
+.progress-bar {
+  flex: 1;
+  height: 12px;
+  background: #e0e7ff;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a90d9, #48dbfb);
+  border-radius: 6px;
+  transition: width 0.4s ease;
+  width: 0%;
+}
+
+/* Steps */
+.step {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 0;
+}
+.step-label {
+  font-size: 1.2rem;
+  color: var(--text-light);
+  text-align: center;
+}
+
+.big-letter {
+  font-size: 8rem;
+  font-weight: 800;
+  color: var(--primary);
+  text-shadow: 3px 3px 0 rgba(74, 144, 217, 0.15);
+  line-height: 1;
+  padding: 20px;
+}
+
+/* Word card */
+.word-card {
+  background: var(--card-bg);
+  border-radius: 20px;
+  padding: 30px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 320px;
+}
+.word-emoji {
+  font-size: 5rem;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.word-text {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 16px;
+  letter-spacing: 1px;
+}
+
+/* Buttons */
+.btn-play {
+  background: var(--card-bg);
+  border: 2px solid var(--primary);
+  color: var(--primary);
+  padding: 12px 28px;
+  border-radius: 50px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-play:hover {
+  background: var(--primary);
+  color: #fff;
+}
+.btn-play:active {
+  transform: scale(0.96);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 16px 36px;
+  border-radius: 50px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(74, 144, 217, 0.3);
+}
+.btn-primary:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+.btn-secondary {
+  background: #e8edf5;
+  color: var(--text);
+  border: none;
+  padding: 14px 28px;
+  border-radius: 50px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secondary:hover {
+  background: #dce3ef;
+}
+
+/* Record button */
+.btn-record {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(145deg, #ff6b6b, #ee5a24);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 6px 20px rgba(238, 90, 36, 0.35);
+  transition: all 0.2s;
+}
+.btn-record:hover {
+  transform: scale(1.04);
+}
+.btn-record:active, .btn-record.recording {
+  transform: scale(0.96);
+  background: linear-gradient(145deg, #ee5a24, #c0392b);
+}
+.mic-icon {
+  font-size: 2.5rem;
+}
+
+/* Recording indicator */
+.recording-indicator {
+  text-align: center;
+  color: var(--danger);
+  font-weight: 600;
+}
+.pulse-ring {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(244, 67, 54, 0.15);
+  margin: 0 auto 10px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Score display */
+.score-display {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+  animation: fadeIn 0.4s ease;
+}
+.score-stars {
+  font-size: 3rem;
+  letter-spacing: 8px;
+}
+.score-message {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.score-message.perfect { color: var(--success); }
+.score-message.good { color: var(--warning); }
+.score-message.try-again { color: var(--danger); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Result screen */
+.result-container {
+  text-align: center;
+  padding: 40px 0;
+  width: 100%;
+}
+.result-title {
+  font-size: 2rem;
+  margin-bottom: 24px;
+}
+.result-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 30px;
+}
+.result-item {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow);
+  font-size: 1.1rem;
+}
+.result-item .word-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+}
+.result-item .word-info .emoji {
+  font-size: 1.6rem;
+}
+.result-item .stars {
+  font-size: 1.3rem;
+}
+.result-item.needs-practice {
+  border-left: 4px solid var(--warning);
+}
+
+.result-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  padding-top: 10px;
+}
+
+/* Celebration */
+.celebration {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 999;
+}
+.confetti {
+  position: absolute;
+  font-size: 1.8rem;
+  animation: confettiFall 2s ease-in forwards;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* Responsive */
+@media (max-width: 420px) {
+  .letter-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .letter-btn .letter-label {
+    font-size: 1.4rem;
+  }
+  .big-letter {
+    font-size: 6rem;
+  }
+  .word-emoji {
+    font-size: 3.5rem;
+  }
+  .word-text {
+    font-size: 2rem;
+  }
+  .btn-record {
+    width: 120px;
+    height: 120px;
+  }
+}
+
+/* Disabled state for browsers without speech recognition */
+.btn-record:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.no-speech-warning {
+  background: #fff3cd;
+  color: #856404;
+  padding: 14px 20px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-top: 10px;
+}
