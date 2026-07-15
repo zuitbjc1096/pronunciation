@@ -19,11 +19,17 @@
 }
 
 body {
-  font-family: "SF Pro Rounded", "Nunito", "Segoe UI", system-ui, sans-serif;
+  font-family: -apple-system, "SF Pro Rounded", "Nunito", "Segoe UI", system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 /* Screens */
@@ -33,6 +39,8 @@ body {
   max-width: 500px;
   margin: 0 auto;
   min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
 }
 .screen.active {
   display: flex;
@@ -395,7 +403,7 @@ body {
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
 }
 
-/* Responsive */
+/* Responsive - iPhone SE / small phones */
 @media (max-width: 420px) {
   .letter-grid {
     grid-template-columns: repeat(4, 1fr);
@@ -416,6 +424,47 @@ body {
   .btn-record {
     width: 120px;
     height: 120px;
+  }
+}
+
+/* iPhone notch / dynamic island */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .header {
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }
+  .practice-header {
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }
+}
+
+/* Touch-friendly: larger tap targets */
+@media (pointer: coarse) {
+  .btn-play {
+    padding: 14px 32px;
+    font-size: 1.15rem;
+    min-height: 48px;
+  }
+  .btn-primary {
+    padding: 18px 40px;
+    font-size: 1.2rem;
+    min-height: 52px;
+  }
+  .btn-secondary {
+    padding: 16px 32px;
+    font-size: 1.1rem;
+    min-height: 48px;
+  }
+  .btn-back {
+    padding: 12px;
+    font-size: 1.15rem;
+    min-height: 44px;
+  }
+}
+
+/* Standalone (added to home screen) mode */
+@media (display-mode: standalone) {
+  .header {
+    padding-top: 16px;
   }
 }
 

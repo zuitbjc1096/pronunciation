@@ -2,7 +2,7 @@
   // ── State ──
   let currentLetter = null;
   let currentWordIndex = 0;
-  let scores = {};        // { word: score }
+  let scores = {};
   let recognition = null;
   let isRecording = false;
   const completedLetters = new Set(JSON.parse(localStorage.getItem("completedLetters") || "[]"));
@@ -31,8 +31,15 @@
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const hasSpeechRecognition = !!SpeechRecognition;
 
+  // ── iOS detection ──
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
   // ── Init ──
   buildLetterGrid();
+  if (!hasSpeechRecognition) {
+    $recordLabel.textContent = "点击说话";
+  }
 
   // ── Build letter grid ──
   function buildLetterGrid() {
@@ -55,31 +62,60 @@
   function showScreen(screen) {
     [$home, $practice, $result].forEach(s => s.classList.remove("active"));
     screen.classList.add("active");
+    window.scrollTo(0, 0);
   }
 
-  // ── TTS ──
+  // ── TTS (with iOS workaround) ──
+  let iosAudioUnlocked = false;
+
+  function unlockIOSAudio() {
+    if (iosAudioUnlocked || !isIOS) return;
+    const utter = new SpeechSynthesisUtterance("");
+    utter.volume = 0;
+    window.speechSynthesis.speak(utter);
+    iosAudioUnlocked = true;
+  }
+
   function speak(text, rate = 0.85) {
     return new Promise(resolve => {
       window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "en-US";
-      utter.rate = rate;
-      utter.pitch = 1.1;
 
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(v => v.lang.startsWith("en") && v.name.includes("Samantha"))
-                     || voices.find(v => v.lang.startsWith("en-US"))
-                     || voices.find(v => v.lang.startsWith("en"));
-      if (preferred) utter.voice = preferred;
+      // iOS requires a small delay after cancel
+      const delay = isIOS ? 100 : 0;
+      setTimeout(() => {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "en-US";
+        utter.rate = rate;
+        utter.pitch = 1.1;
 
-      utter.onend = resolve;
-      utter.onerror = resolve;
-      window.speechSynthesis.speak(utter);
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(v => v.lang.startsWith("en") && v.name.includes("Samantha"))
+                       || voices.find(v => v.lang.startsWith("en-US"))
+                       || voices.find(v => v.lang.startsWith("en"));
+        if (preferred) utter.voice = preferred;
+
+        utter.onend = resolve;
+        utter.onerror = resolve;
+        window.speechSynthesis.speak(utter);
+
+        // iOS workaround: speechSynthesis can pause in background
+        if (isIOS) {
+          const keepAlive = setInterval(() => {
+            if (!window.speechSynthesis.speaking) {
+              clearInterval(keepAlive);
+              return;
+            }
+            window.speechSynthesis.pause();
+            window.speechSynthesis.resume();
+          }, 5000);
+        }
+      }, delay);
     });
   }
 
   // ── Start practice for a letter ──
   function startPractice(letter) {
+    unlockIOSAudio();
     currentLetter = letter;
     currentWordIndex = 0;
     scores = {};
@@ -91,7 +127,7 @@
     $bigLetter.textContent = letter;
     updateProgress();
 
-    speak(LETTER_DATA[letter].sound, 0.75);
+    setTimeout(() => speak(LETTER_DATA[letter].sound, 0.75), 200);
   }
 
   // ── Update progress bar ──
@@ -126,10 +162,16 @@
       return;
     }
 
-    recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 5;
+    try {
+      recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 5;
+      recognition.continuous = false;
+    } catch (e) {
+      showManualScoring();
+      return;
+    }
 
     isRecording = true;
     $btnRecord.classList.add("recording");
@@ -157,8 +199,12 @@
       finishRecording(score);
     };
 
-    recognition.onerror = () => {
-      finishRecording(null);
+    recognition.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        showManualScoring();
+      } else {
+        finishRecording(null);
+      }
     };
 
     recognition.onend = () => {
@@ -170,11 +216,16 @@
       }
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (e) {
+      showManualScoring();
+      return;
+    }
 
     setTimeout(() => {
-      if (isRecording) {
-        recognition.stop();
+      if (isRecording && recognition) {
+        try { recognition.stop(); } catch (e) { /* already stopped */ }
       }
     }, 5000);
   }
@@ -202,6 +253,7 @@
   }
 
   function showManualScoring() {
+    isRecording = false;
     $btnRecord.style.display = "none";
     $recIndicator.style.display = "none";
     $scoreDisplay.style.display = "flex";
@@ -218,9 +270,7 @@
     document.getElementById("btn-next-word").style.display = "none";
 
     $scoreDisplay.querySelectorAll(".manual-score").forEach(btn => {
-      btn.style.cssText = "background:none;border:2px solid #ddd;border-radius:12px;padding:10px 18px;font-size:1.3rem;cursor:pointer;transition:all 0.2s;";
-      btn.addEventListener("mouseenter", () => btn.style.borderColor = "#4a90d9");
-      btn.addEventListener("mouseleave", () => btn.style.borderColor = "#ddd");
+      btn.style.cssText = "background:none;border:2px solid #ddd;border-radius:16px;padding:12px 20px;font-size:1.3rem;cursor:pointer;transition:all 0.2s;min-height:48px;";
       btn.addEventListener("click", () => {
         const s = parseInt(btn.dataset.score);
         finishRecording(s);
@@ -379,6 +429,7 @@
 
   // ── Event listeners ──
   document.getElementById("btn-play-letter").addEventListener("click", () => {
+    unlockIOSAudio();
     speak(LETTER_DATA[currentLetter].sound, 0.75);
   });
 
@@ -387,6 +438,7 @@
   });
 
   document.getElementById("btn-play-word").addEventListener("click", () => {
+    unlockIOSAudio();
     const wordObj = LETTER_DATA[currentLetter].words[currentWordIndex];
     speak(wordObj.word, 0.75);
   });
@@ -408,7 +460,9 @@
   });
 
   document.getElementById("btn-back").addEventListener("click", () => {
-    if (recognition) recognition.abort();
+    if (recognition) {
+      try { recognition.abort(); } catch (e) { /* safe */ }
+    }
     const data = LETTER_DATA[currentLetter];
     if (data._originalWords) {
       data.words = data._originalWords;
@@ -423,4 +477,12 @@
     window.speechSynthesis.getVoices();
     window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
   }
+
+  // Prevent double-tap zoom on iOS
+  document.addEventListener("touchend", (e) => {
+    if (e.target.closest("button")) {
+      e.preventDefault();
+      e.target.closest("button").click();
+    }
+  }, { passive: false });
 })();
