@@ -5,58 +5,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="ABC练习">
+  <meta name="apple-mobile-web-app-title" content="英语练习">
   <meta name="theme-color" content="#4a90d9">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.json">
-  <title>ABC Pronunciation Practice</title>
+  <title>Kids English Practice</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app">
-    <!-- 首页: 选择字母 -->
-    <div id="screen-home" class="screen active">
+
+    <!-- ═══ 主菜单 ═══ -->
+    <div id="screen-menu" class="screen active">
       <div class="header">
-        <h1>🔤 ABC 发音练习</h1>
-        <p class="subtitle">点击一个字母开始练习吧！</p>
+        <h1>🌟 英语小课堂</h1>
+        <p class="subtitle">选择一个模块开始学习吧！</p>
+      </div>
+      <div class="menu-grid">
+        <button class="menu-card" data-module="abc">
+          <span class="menu-icon">🔤</span>
+          <span class="menu-title">ABC 发音</span>
+          <span class="menu-desc">学习26个字母</span>
+        </button>
+        <button class="menu-card" data-module="quiz">
+          <span class="menu-icon">🧠</span>
+          <span class="menu-title">看图说英语</span>
+          <span class="menu-desc">动物蔬果颜色</span>
+        </button>
+        <button class="menu-card" data-module="dialogue">
+          <span class="menu-icon">💬</span>
+          <span class="menu-title">日常对话</span>
+          <span class="menu-desc">场景跟读练习</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ ABC 字母选择 ═══ -->
+    <div id="screen-abc" class="screen">
+      <div class="practice-header">
+        <button class="btn-back" data-go="menu">← 主菜单</button>
+        <h2 class="section-title">🔤 ABC 发音练习</h2>
       </div>
       <div id="letter-grid" class="letter-grid"></div>
     </div>
 
-    <!-- 练习页 -->
+    <!-- ═══ ABC 练习页 ═══ -->
     <div id="screen-practice" class="screen">
       <div class="practice-header">
-        <button id="btn-back" class="btn-back" aria-label="返回">← 返回</button>
+        <button class="btn-back" data-go="abc">← 返回</button>
         <div id="progress-bar" class="progress-bar">
           <div id="progress-fill" class="progress-fill"></div>
         </div>
       </div>
-
-      <!-- 步骤1: 字母发音 -->
       <div id="step-letter" class="step">
         <p class="step-label">先听字母的发音</p>
         <div id="current-letter" class="big-letter"></div>
-        <button id="btn-play-letter" class="btn-play" aria-label="播放字母发音">
-          🔊 听一听
-        </button>
-        <button id="btn-next-to-word" class="btn-primary">
-          我听到了！下一步 →
-        </button>
+        <button id="btn-play-letter" class="btn-play">🔊 听一听</button>
+        <button id="btn-next-to-word" class="btn-primary">我听到了！下一步 →</button>
       </div>
-
-      <!-- 步骤2: 单词练习 -->
       <div id="step-word" class="step" style="display:none">
         <p class="step-label">现在练习这个单词</p>
         <div class="word-card">
           <div id="word-emoji" class="word-emoji"></div>
           <div id="word-text" class="word-text"></div>
-          <button id="btn-play-word" class="btn-play" aria-label="播放单词发音">
-            🔊 听一听
-          </button>
+          <button id="btn-play-word" class="btn-play">🔊 听一听</button>
         </div>
         <button id="btn-record" class="btn-record">
           <span class="mic-icon">🎤</span>
-          <span id="record-label">按住说话</span>
+          <span id="record-label">点击说话</span>
         </button>
         <div id="recording-indicator" class="recording-indicator" style="display:none">
           <div class="pulse-ring"></div>
@@ -71,7 +87,111 @@
       </div>
     </div>
 
-    <!-- 结果页 -->
+    <!-- ═══ 提问模式 - 分类选择 ═══ -->
+    <div id="screen-quiz-menu" class="screen">
+      <div class="practice-header">
+        <button class="btn-back" data-go="menu">← 主菜单</button>
+        <h2 class="section-title">🧠 看图说英语</h2>
+      </div>
+      <p class="section-desc">选择一个类别，看图片说出英文名称！</p>
+      <div id="quiz-category-grid" class="category-grid"></div>
+    </div>
+
+    <!-- ═══ 提问模式 - 练习 ═══ -->
+    <div id="screen-quiz" class="screen">
+      <div class="practice-header">
+        <button class="btn-back" data-go="quiz-menu">← 返回</button>
+        <div id="quiz-progress-bar" class="progress-bar">
+          <div id="quiz-progress-fill" class="progress-fill"></div>
+        </div>
+        <span id="quiz-counter" class="counter-badge"></span>
+      </div>
+
+      <!-- 提问卡片 -->
+      <div id="quiz-card" class="quiz-card">
+        <div id="quiz-emoji" class="quiz-emoji"></div>
+        <p id="quiz-prompt" class="quiz-prompt"></p>
+        <button id="quiz-play-hint" class="btn-play" style="display:none">🔊 听答案</button>
+      </div>
+
+      <!-- 录音按钮 -->
+      <button id="quiz-record" class="btn-record">
+        <span class="mic-icon">🎤</span>
+        <span>说出英文</span>
+      </button>
+      <div id="quiz-rec-indicator" class="recording-indicator" style="display:none">
+        <div class="pulse-ring"></div>
+        <p>正在听你说...</p>
+      </div>
+
+      <!-- 答题结果 -->
+      <div id="quiz-feedback" class="quiz-feedback" style="display:none">
+        <div id="quiz-fb-stars" class="score-stars"></div>
+        <p id="quiz-fb-msg" class="score-message"></p>
+        <div id="quiz-fb-answer" class="quiz-answer-reveal" style="display:none"></div>
+        <div class="quiz-fb-buttons">
+          <button id="quiz-retry" class="btn-secondary">再试一次 🔄</button>
+          <button id="quiz-next" class="btn-primary">下一题 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 对话模式 - 场景选择 ═══ -->
+    <div id="screen-dialogue-menu" class="screen">
+      <div class="practice-header">
+        <button class="btn-back" data-go="menu">← 主菜单</button>
+        <h2 class="section-title">💬 日常对话</h2>
+      </div>
+      <p class="section-desc">选择一个场景，跟着读英语句子！</p>
+      <div id="dialogue-scene-grid" class="category-grid"></div>
+    </div>
+
+    <!-- ═══ 对话模式 - 跟读 ═══ -->
+    <div id="screen-dialogue" class="screen">
+      <div class="practice-header">
+        <button class="btn-back" data-go="dialogue-menu">← 返回</button>
+        <div id="dlg-progress-bar" class="progress-bar">
+          <div id="dlg-progress-fill" class="progress-fill"></div>
+        </div>
+        <span id="dlg-counter" class="counter-badge"></span>
+      </div>
+
+      <!-- 对话卡片 -->
+      <div class="dialogue-card">
+        <div class="dlg-chinese">
+          <span class="dlg-flag">🇨🇳</span>
+          <p id="dlg-cn-text" class="dlg-text-cn"></p>
+        </div>
+        <div class="dlg-arrow">⬇️</div>
+        <div class="dlg-english">
+          <span class="dlg-flag">🇺🇸</span>
+          <p id="dlg-en-text" class="dlg-text-en"></p>
+          <button id="dlg-play" class="btn-play-sm">🔊</button>
+        </div>
+      </div>
+
+      <p class="step-label">听完后跟着读一遍</p>
+
+      <button id="dlg-record" class="btn-record">
+        <span class="mic-icon">🎤</span>
+        <span>跟读</span>
+      </button>
+      <div id="dlg-rec-indicator" class="recording-indicator" style="display:none">
+        <div class="pulse-ring"></div>
+        <p>正在听你说...</p>
+      </div>
+
+      <div id="dlg-feedback" class="quiz-feedback" style="display:none">
+        <div id="dlg-fb-stars" class="score-stars"></div>
+        <p id="dlg-fb-msg" class="score-message"></p>
+        <div class="quiz-fb-buttons">
+          <button id="dlg-retry" class="btn-secondary">再试一次 🔄</button>
+          <button id="dlg-next" class="btn-primary">下一句 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 通用结果页 ═══ -->
     <div id="screen-result" class="screen">
       <div class="result-container">
         <h2 id="result-title" class="result-title"></h2>
@@ -79,9 +199,11 @@
         <div id="result-buttons" class="result-buttons"></div>
       </div>
     </div>
+
   </div>
 
   <script src="data.js"></script>
+  <script src="data-quiz.js"></script>
   <script src="app.js"></script>
   <script>
     if ("serviceWorker" in navigator) {
