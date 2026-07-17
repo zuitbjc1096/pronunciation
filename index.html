@@ -22,6 +22,12 @@
         <p class="subtitle">选择一个模块开始学习吧！</p>
       </div>
       <div class="menu-grid">
+        <button class="menu-card menu-card-featured" data-module="course">
+          <span class="menu-icon">📚</span>
+          <div><span class="menu-title">分级课程</span>
+          <span class="menu-desc">1-10级 从易到难系统学习</span></div>
+          <span class="menu-arrow">→</span>
+        </button>
         <button class="menu-card" data-module="abc">
           <span class="menu-icon">🔤</span>
           <div><span class="menu-title">ABC 发音</span>
@@ -242,6 +248,96 @@
       </div>
     </div>
 
+    <!-- ═══ 分级课程 - 级别选择 ═══ -->
+    <div id="screen-course" class="screen">
+      <div class="practice-header">
+        <button class="btn-back" data-go="menu">← 主菜单</button>
+        <h2 class="section-title">📚 分级课程</h2>
+      </div>
+      <p class="section-desc">选择一个级别开始学习！</p>
+      <div id="course-level-grid" class="level-grid"></div>
+    </div>
+
+    <!-- ═══ 分级课程 - 单元选择 ═══ -->
+    <div id="screen-course-units" class="screen">
+      <div class="practice-header">
+        <button class="btn-back" data-go="course">← 返回</button>
+        <h2 id="course-level-title" class="section-title"></h2>
+      </div>
+      <p id="course-level-desc" class="section-desc"></p>
+      <div id="course-unit-grid" class="unit-grid"></div>
+    </div>
+
+    <!-- ═══ 分级课程 - 练习页 ═══ -->
+    <div id="screen-course-practice" class="screen">
+      <div class="practice-header">
+        <button id="cp-back" class="btn-back">← 返回</button>
+        <div id="cp-progress-bar" class="progress-bar">
+          <div id="cp-progress-fill" class="progress-fill"></div>
+        </div>
+        <span id="cp-counter" class="counter-badge"></span>
+      </div>
+
+      <!-- 发音对比卡 (contrast) -->
+      <div id="cp-contrast-card" class="contrast-card" style="display:none">
+        <div class="contrast-pair">
+          <div id="cp-short" class="contrast-item contrast-short">
+            <div id="cp-short-emoji" class="contrast-emoji"></div>
+            <div id="cp-short-word" class="contrast-word"></div>
+            <div id="cp-short-sound" class="contrast-sound"></div>
+            <button id="cp-short-play" class="btn-play-sm">🔊</button>
+          </div>
+          <div class="contrast-vs">VS</div>
+          <div id="cp-long" class="contrast-item contrast-long">
+            <div id="cp-long-emoji" class="contrast-emoji"></div>
+            <div id="cp-long-word" class="contrast-word"></div>
+            <div id="cp-long-sound" class="contrast-sound"></div>
+            <button id="cp-long-play" class="btn-play-sm">🔊</button>
+          </div>
+        </div>
+        <p class="step-label">请分别读出两个单词</p>
+      </div>
+
+      <!-- 普通单词/句子卡 -->
+      <div id="cp-card" class="quiz-card" style="display:none">
+        <div id="cp-emoji" class="quiz-emoji"></div>
+        <p id="cp-prompt" class="quiz-prompt"></p>
+        <p id="cp-cn" class="cp-cn-text"></p>
+        <p id="cp-sound-rule" class="cp-sound-rule"></p>
+        <button id="cp-play" class="btn-play">🔊 听一听</button>
+      </div>
+
+      <button id="cp-record" class="btn-record">
+        <span class="mic-icon">🎤</span>
+        <span id="cp-record-label">说一说</span>
+      </button>
+      <div id="cp-rec-indicator" class="recording-indicator" style="display:none">
+        <div class="pulse-ring"></div>
+        <p>正在听你说...</p>
+      </div>
+
+      <div id="cp-feedback" class="quiz-feedback" style="display:none">
+        <div id="cp-fb-stars" class="score-stars"></div>
+        <p id="cp-fb-msg" class="score-message"></p>
+        <div id="cp-ai-help" class="ai-help-area" style="display:none">
+          <button id="cp-ai-btn" class="btn-ai-help">🤖 AI 帮帮我</button>
+          <div id="cp-ai-result" class="ai-result" style="display:none">
+            <p class="ai-result-title">💡 试试这些发音相似的词：</p>
+            <div id="cp-ai-words" class="ai-word-list"></div>
+            <div id="cp-ai-tip" class="ai-tip"></div>
+          </div>
+          <div id="cp-ai-loading" class="ai-loading" style="display:none">
+            <div class="ai-spinner"></div>
+            <p>AI 老师正在准备...</p>
+          </div>
+        </div>
+        <div class="quiz-fb-buttons">
+          <button id="cp-retry" class="btn-secondary">再试一次 🔄</button>
+          <button id="cp-next" class="btn-primary">下一个 →</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ 通用结果页 ═══ -->
     <div id="screen-result" class="screen">
       <div class="result-container">
@@ -255,6 +351,8 @@
 
   <script src="data.js"></script>
   <script src="data-quiz.js"></script>
+  <script src="data-levels.js"></script>
+  <script src="glm.js"></script>
   <script src="app.js"></script>
   <script>
     if ("serviceWorker" in navigator) {

@@ -1,7 +1,7 @@
 {
   "name": "英语小课堂",
   "short_name": "英语练习",
-  "description": "英文字母发音、看图说英语、日常对话跟读，适合一年级小朋友",
+  "description": "1-10级分级课程、AI发音辅助、字母发音、看图说英语、日常对话，适合小学生",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",

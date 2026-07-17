@@ -262,7 +262,8 @@
     card.addEventListener("click", () => {
       unlockIOSAudio();
       const mod = card.dataset.module;
-      if (mod === "abc") { buildLetterGrid(); showScreen("abc"); }
+      if (mod === "course") { buildCourseLevels(); showScreen("course"); }
+      else if (mod === "abc") { buildLetterGrid(); showScreen("abc"); }
       else if (mod === "quiz") { buildQuizCategories(); showScreen("quiz-menu"); }
       else if (mod === "dialogue") { buildDialogueScenes(); showScreen("dialogue-menu"); }
       else if (mod === "mistakes") { buildMistakesScreen(); showScreen("mistakes"); }
@@ -1019,6 +1020,453 @@
     window.speechSynthesis.cancel();
     buildMistakesScreen();
     showScreen("mistakes");
+  });
+
+  // ═══════════════════════════════════
+  //  MODULE 5: 分级课程
+  // ═══════════════════════════════════
+
+  const COURSE_PROGRESS_KEY = "courseProgress";
+
+  function loadCourseProgress() {
+    try { return JSON.parse(localStorage.getItem(COURSE_PROGRESS_KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+
+  function saveCourseProgress(levelId, unitIdx, score) {
+    const prog = loadCourseProgress();
+    const key = `${levelId}-${unitIdx}`;
+    const prev = prog[key] || 0;
+    if (score > prev) prog[key] = score;
+    localStorage.setItem(COURSE_PROGRESS_KEY, JSON.stringify(prog));
+  }
+
+  function getUnitScore(levelId, unitIdx) {
+    return loadCourseProgress()[`${levelId}-${unitIdx}`] || 0;
+  }
+
+  function getLevelAvg(level) {
+    const prog = loadCourseProgress();
+    let total = 0, done = 0;
+    level.units.forEach((_, i) => {
+      const s = prog[`${level.id}-${i}`] || 0;
+      total += s;
+      if (s > 0) done++;
+    });
+    return { done, total: level.units.length, avg: done > 0 ? total / done : 0 };
+  }
+
+  // Build level list
+  function buildCourseLevels() {
+    const grid = document.getElementById("course-level-grid");
+    grid.innerHTML = "";
+    COURSE_LEVELS.forEach((level) => {
+      const stats = getLevelAvg(level);
+      const pct = Math.round(stats.done / stats.total * 100);
+      const btn = document.createElement("button");
+      btn.className = "level-card";
+      btn.innerHTML = `
+        <span class="level-num" style="background:${level.color}">${level.id}</span>
+        <span class="level-icon">${level.icon}</span>
+        <div class="level-info">
+          <span class="level-name">${level.name}</span>
+          <span class="level-desc">${level.desc}</span>
+          <div class="level-progress"><div class="level-progress-fill" style="width:${pct}%"></div></div>
+        </div>
+        <span class="level-stars">${stats.done}/${stats.total}</span>
+      `;
+      btn.addEventListener("click", () => buildCourseUnits(level));
+      grid.appendChild(btn);
+    });
+  }
+
+  // Build unit list for a level
+  let cpLevel = null;
+
+  function buildCourseUnits(level) {
+    cpLevel = level;
+    document.getElementById("course-level-title").textContent = `${level.icon} Level ${level.id}: ${level.name}`;
+    document.getElementById("course-level-desc").textContent = level.desc;
+    const grid = document.getElementById("course-unit-grid");
+    grid.innerHTML = "";
+    level.units.forEach((unit, i) => {
+      const score = getUnitScore(level.id, i);
+      const typeBadges = { phonics: "发音", contrast: "对比", vocab: "词汇", sentence: "句子" };
+      const btn = document.createElement("button");
+      btn.className = "unit-card";
+      btn.innerHTML = `
+        <span class="unit-num" style="background:${level.color}">${i + 1}</span>
+        <span class="unit-title">${unit.title}<span class="unit-type-badge">${typeBadges[unit.type] || unit.type}</span></span>
+        <span class="unit-check">${score >= 2.5 ? "⭐" : score > 0 ? "🔶" : "○"}</span>
+      `;
+      btn.addEventListener("click", () => cpStartUnit(level, i));
+      grid.appendChild(btn);
+    });
+    showScreen("course-units");
+  }
+
+  // Course Practice state
+  let cpUnit = null, cpUnitIdx = 0, cpFlatItems = [], cpIdx = 0, cpScores = [];
+
+  const $cpCard = document.getElementById("cp-card");
+  const $cpContrast = document.getElementById("cp-contrast-card");
+  const $cpEmoji = document.getElementById("cp-emoji");
+  const $cpPrompt = document.getElementById("cp-prompt");
+  const $cpCn = document.getElementById("cp-cn");
+  const $cpSoundRule = document.getElementById("cp-sound-rule");
+  const $cpPlay = document.getElementById("cp-play");
+  const $cpRecBtn = document.getElementById("cp-record");
+  const $cpRecLabel = document.getElementById("cp-record-label");
+  const $cpRecInd = document.getElementById("cp-rec-indicator");
+  const $cpFeedback = document.getElementById("cp-feedback");
+  const $cpFbStars = document.getElementById("cp-fb-stars");
+  const $cpFbMsg = document.getElementById("cp-fb-msg");
+  const $cpProgressFill = document.getElementById("cp-progress-fill");
+  const $cpCounter = document.getElementById("cp-counter");
+  const $cpAiHelp = document.getElementById("cp-ai-help");
+  const $cpAiBtn = document.getElementById("cp-ai-btn");
+  const $cpAiResult = document.getElementById("cp-ai-result");
+  const $cpAiWords = document.getElementById("cp-ai-words");
+  const $cpAiTip = document.getElementById("cp-ai-tip");
+  const $cpAiLoading = document.getElementById("cp-ai-loading");
+
+  // Flatten unit items into a sequential list for practice
+  function flattenUnitItems(unit) {
+    const items = [];
+    if (unit.type === "phonics" || unit.type === "vocab") {
+      unit.items.forEach(group => {
+        if (group.words) {
+          group.words.forEach(w => {
+            items.push({
+              type: "word",
+              word: w.word, emoji: w.emoji, cn: w.cn,
+              letter: group.letter || "", sound: group.sound || "",
+            });
+          });
+        } else {
+          items.push({
+            type: "word",
+            word: group.word, emoji: group.emoji, cn: group.cn,
+            letter: "", sound: "",
+          });
+        }
+      });
+    } else if (unit.type === "contrast") {
+      unit.items.forEach(pair => {
+        items.push({ type: "contrast", short: pair.short, long: pair.long });
+      });
+    } else if (unit.type === "sentence") {
+      unit.items.forEach(s => {
+        items.push({ type: "sentence", en: s.en, cn: s.cn });
+      });
+    }
+    return items;
+  }
+
+  function cpStartUnit(level, unitIdx) {
+    cpLevel = level;
+    cpUnitIdx = unitIdx;
+    cpUnit = level.units[unitIdx];
+    cpFlatItems = flattenUnitItems(cpUnit);
+    cpIdx = 0;
+    cpScores = [];
+    showScreen("course-practice");
+    cpShowItem();
+  }
+
+  function cpShowItem() {
+    const item = cpFlatItems[cpIdx];
+    $cpRecBtn.style.display = "flex";
+    $cpRecInd.style.display = "none";
+    $cpFeedback.style.display = "none";
+    $cpAiHelp.style.display = "none";
+    $cpProgressFill.style.width = (cpIdx / cpFlatItems.length * 100) + "%";
+    $cpCounter.textContent = `${cpIdx + 1}/${cpFlatItems.length}`;
+
+    if (item.type === "contrast") {
+      $cpCard.style.display = "none";
+      $cpContrast.style.display = "block";
+      document.getElementById("cp-short-emoji").textContent = item.short.emoji;
+      document.getElementById("cp-short-word").textContent = item.short.word;
+      document.getElementById("cp-short-sound").textContent = item.short.sound;
+      document.getElementById("cp-long-emoji").textContent = item.long.emoji;
+      document.getElementById("cp-long-word").textContent = item.long.word;
+      document.getElementById("cp-long-sound").textContent = item.long.sound;
+      $cpRecLabel.textContent = "读左边的词";
+      cpContrastPhase = "short";
+      setTimeout(() => speak(item.short.word, 0.65), 300);
+    } else if (item.type === "sentence") {
+      $cpContrast.style.display = "none";
+      $cpCard.style.display = "flex";
+      $cpEmoji.textContent = "💬";
+      $cpPrompt.innerHTML = `<span style="font-size:1.1rem">${item.cn}</span><br><span style="color:var(--primary);font-weight:700;font-size:1.3rem">${item.en}</span>`;
+      $cpCn.textContent = "";
+      $cpSoundRule.style.display = "none";
+      $cpRecLabel.textContent = "跟读";
+      setTimeout(() => speak(item.en, 0.7), 300);
+    } else {
+      $cpContrast.style.display = "none";
+      $cpCard.style.display = "flex";
+      $cpEmoji.textContent = item.emoji;
+      $cpPrompt.textContent = item.word;
+      $cpCn.textContent = item.cn;
+      if (item.sound) {
+        $cpSoundRule.textContent = `${item.letter} = ${item.sound}`;
+        $cpSoundRule.style.display = "inline-block";
+      } else {
+        $cpSoundRule.style.display = "none";
+      }
+      $cpRecLabel.textContent = "说一说";
+      setTimeout(() => speak(item.word, 0.7), 300);
+    }
+  }
+
+  let cpContrastPhase = "short";
+
+  function cpDoRecord() {
+    unlockIOSAudio();
+    const item = cpFlatItems[cpIdx];
+    let target;
+    if (item.type === "contrast") {
+      target = cpContrastPhase === "short" ? item.short.word : item.long.word;
+    } else if (item.type === "sentence") {
+      target = item.en;
+    } else {
+      target = item.word;
+    }
+    doRecognition(
+      (results) => {
+        if (item.type === "contrast" && cpContrastPhase === "short") {
+          const s1 = calcScore(results, target);
+          cpContrastScore1 = s1;
+          cpContrastPhase = "long";
+          $cpRecLabel.textContent = "读右边的词";
+          $cpRecBtn.style.display = "flex";
+          speak(item.long.word, 0.65);
+        } else if (item.type === "contrast" && cpContrastPhase === "long") {
+          const s2 = calcScore(results, target);
+          const avg = Math.round((cpContrastScore1 + s2) / 2);
+          cpShowFeedback(Math.max(1, avg));
+        } else {
+          cpShowFeedback(calcScore(results, target));
+        }
+      },
+      () => cpManualFallback(),
+      $cpRecBtn, $cpRecInd
+    );
+  }
+
+  let cpContrastScore1 = 0;
+
+  function cpManualFallback() {
+    $cpRecBtn.style.display = "none";
+    $cpRecInd.style.display = "none";
+    $cpFeedback.style.display = "flex";
+    $cpFbMsg.textContent = "家长请打分：";
+    $cpFbMsg.className = "score-message";
+    $cpAiHelp.style.display = "none";
+    document.getElementById("cp-retry").style.display = "none";
+    document.getElementById("cp-next").style.display = "none";
+    renderManualScore($cpFbStars, (s) => cpShowFeedback(s));
+  }
+
+  function cpShowFeedback(score) {
+    const item = cpFlatItems[cpIdx];
+    cpScores[cpIdx] = score;
+
+    // Add to mistake book
+    if (score < 3) {
+      if (item.type === "word") {
+        addMistake("abc", { letter: item.letter, word: item.word, emoji: item.emoji });
+      } else if (item.type === "sentence") {
+        addMistake("dialogue", { en: item.en, cn: item.cn, scene: "course" });
+      }
+    } else {
+      if (item.type === "word") removeMistake("abc", item.word);
+      else if (item.type === "sentence") removeMistake("dialogue", item.en);
+    }
+
+    $cpRecBtn.style.display = "none";
+    $cpFeedback.style.display = "flex";
+    document.getElementById("cp-retry").style.display = "inline-block";
+    document.getElementById("cp-next").style.display = "inline-block";
+    showScoreUI($cpFbStars, $cpFbMsg, score);
+
+    // Show AI help button when score is low
+    if (score <= 1 && item.type === "word" && typeof callGLM === "function") {
+      $cpAiHelp.style.display = "flex";
+      $cpAiBtn.style.display = "inline-block";
+      $cpAiBtn.disabled = false;
+      $cpAiResult.style.display = "none";
+      $cpAiLoading.style.display = "none";
+    } else {
+      $cpAiHelp.style.display = "none";
+    }
+  }
+
+  // AI Helper - call GLM for similar words
+  $cpAiBtn.addEventListener("click", async () => {
+    const item = cpFlatItems[cpIdx];
+    if (!item || item.type !== "word") return;
+
+    $cpAiBtn.disabled = true;
+    $cpAiLoading.style.display = "block";
+    $cpAiResult.style.display = "none";
+
+    const [similarWords, phonicsTip] = await Promise.all([
+      glmSimilarWords(item.word),
+      item.letter ? glmPhonicsHelp(item.letter, item.word) : Promise.resolve(null),
+    ]);
+
+    $cpAiLoading.style.display = "none";
+
+    if (similarWords) {
+      $cpAiResult.style.display = "block";
+      $cpAiBtn.style.display = "none";
+      $cpAiWords.innerHTML = "";
+      similarWords.forEach(w => {
+        const tag = document.createElement("div");
+        tag.className = "ai-word-tag";
+        tag.innerHTML = `<span class="ai-word-emoji">${w.emoji || "📝"}</span><span class="ai-word-en">${w.word}</span><span class="ai-word-cn">${w.cn}</span>`;
+        tag.addEventListener("click", () => { unlockIOSAudio(); speak(w.word, 0.7); });
+        $cpAiWords.appendChild(tag);
+      });
+      if (phonicsTip) {
+        $cpAiTip.textContent = phonicsTip;
+        $cpAiTip.style.display = "block";
+      } else {
+        $cpAiTip.style.display = "none";
+      }
+    } else {
+      $cpAiBtn.disabled = false;
+      $cpFbMsg.textContent += " (AI 暂时不可用)";
+    }
+  });
+
+  function cpNext() {
+    cpIdx++;
+    if (cpIdx >= cpFlatItems.length) cpResults();
+    else {
+      cpContrastPhase = "short";
+      cpShowItem();
+    }
+  }
+
+  function cpResults() {
+    showScreen("result");
+    const $t = document.getElementById("result-title");
+    const $s = document.getElementById("result-summary");
+    const $b = document.getElementById("result-buttons");
+
+    let total = 0;
+    $s.innerHTML = "";
+    cpFlatItems.forEach((item, i) => {
+      const sc = cpScores[i] || 1;
+      total += sc;
+      let label, emoji;
+      if (item.type === "contrast") {
+        label = `${item.short.word} vs ${item.long.word}`;
+        emoji = "🔀";
+      } else if (item.type === "sentence") {
+        label = item.en;
+        emoji = "💬";
+      } else {
+        label = `${item.word} (${item.cn})`;
+        emoji = item.emoji;
+      }
+      $s.innerHTML += `<div class="result-item${sc<3?" needs-practice":""}">
+        <div class="word-info"><span class="emoji">${emoji}</span><span>${label}</span></div>
+        <span class="stars">${"⭐".repeat(sc)}</span></div>`;
+    });
+
+    const avg = total / cpFlatItems.length;
+    saveCourseProgress(cpLevel.id, cpUnitIdx, avg);
+
+    if (avg >= 2.8) { $t.textContent = "🎉 太厉害了！全部满分！"; celebrate(); }
+    else if (avg >= 2) { $t.textContent = "👍 不错！继续加油！"; }
+    else { $t.textContent = "💪 多练习就会更好！"; }
+
+    $b.innerHTML = "";
+
+    const weak = cpFlatItems.filter((_, i) => (cpScores[i] || 1) < 3);
+    if (weak.length > 0) {
+      const rb = document.createElement("button");
+      rb.className = "btn-primary";
+      rb.textContent = "🔄 重新练习不熟的内容";
+      rb.addEventListener("click", () => {
+        cpFlatItems = weak; cpIdx = 0; cpScores = [];
+        cpContrastPhase = "short";
+        showScreen("course-practice"); cpShowItem();
+      });
+      $b.appendChild(rb);
+    }
+
+    // Next unit
+    const nextIdx = cpUnitIdx + 1;
+    if (nextIdx < cpLevel.units.length) {
+      const nb = document.createElement("button");
+      nb.className = weak.length > 0 ? "btn-secondary" : "btn-primary";
+      nb.textContent = `下一单元：${cpLevel.units[nextIdx].title} →`;
+      nb.addEventListener("click", () => cpStartUnit(cpLevel, nextIdx));
+      $b.appendChild(nb);
+    }
+
+    const ub = document.createElement("button");
+    ub.className = "btn-secondary";
+    ub.textContent = `📋 返回 Level ${cpLevel.id}`;
+    ub.addEventListener("click", () => buildCourseUnits(cpLevel));
+    $b.appendChild(ub);
+
+    const hb = document.createElement("button");
+    hb.className = "btn-secondary";
+    hb.textContent = "🏠 回到主菜单";
+    hb.addEventListener("click", () => showScreen("menu"));
+    $b.appendChild(hb);
+  }
+
+  // Play buttons for contrast cards
+  document.getElementById("cp-short-play").addEventListener("click", () => {
+    unlockIOSAudio();
+    const item = cpFlatItems[cpIdx];
+    if (item && item.type === "contrast") speak(item.short.word, 0.65);
+  });
+  document.getElementById("cp-long-play").addEventListener("click", () => {
+    unlockIOSAudio();
+    const item = cpFlatItems[cpIdx];
+    if (item && item.type === "contrast") speak(item.long.word, 0.65);
+  });
+
+  $cpPlay.addEventListener("click", () => {
+    unlockIOSAudio();
+    const item = cpFlatItems[cpIdx];
+    if (!item) return;
+    if (item.type === "sentence") speak(item.en, 0.7);
+    else speak(item.word, 0.7);
+  });
+
+  $cpRecBtn.addEventListener("click", () => cpDoRecord());
+
+  document.getElementById("cp-retry").addEventListener("click", () => {
+    $cpFeedback.style.display = "none";
+    $cpRecBtn.style.display = "flex";
+    const item = cpFlatItems[cpIdx];
+    if (item.type === "contrast") {
+      cpContrastPhase = "short";
+      $cpRecLabel.textContent = "读左边的词";
+      speak(item.short.word, 0.65);
+    } else if (item.type === "sentence") {
+      speak(item.en, 0.7);
+    } else {
+      speak(item.word, 0.7);
+    }
+  });
+
+  document.getElementById("cp-next").addEventListener("click", () => cpNext());
+
+  document.getElementById("cp-back").addEventListener("click", () => {
+    window.speechSynthesis.cancel();
+    if (cpLevel) buildCourseUnits(cpLevel);
+    else showScreen("course");
   });
 
   // ═══════════════════════════════════
