@@ -196,6 +196,15 @@
     }
   }
 
+  // Record an answer for stats + spaced repetition.
+  // `type` matches the mistake book type ("abc"/"quiz"/"dialogue").
+  // `key` is the unique item identifier (word or en sentence).
+  function recordAnswer(type, key, score) {
+    if (typeof learningEngine === "undefined") return;
+    learningEngine.recordActivity(score >= 3 ? 1 : 0, score < 3 ? 1 : 0);
+    learningEngine.updateSRS(`${type}:${key}`, score);
+  }
+
   function renderManualScore(container, onScore) {
     container.innerHTML = `
       <button class="manual-score" data-score="1">⭐</button>
@@ -282,15 +291,11 @@
   const MISTAKES_KEY = "mistakeBook";
 
   function loadMistakes() {
-    try {
-      return JSON.parse(localStorage.getItem(MISTAKES_KEY)) || { abc: [], quiz: [], dialogue: [] };
-    } catch (e) {
-      return { abc: [], quiz: [], dialogue: [] };
-    }
+    return safeStorage.loadJSON(MISTAKES_KEY, { abc: [], quiz: [], dialogue: [] });
   }
 
   function saveMistakes(data) {
-    localStorage.setItem(MISTAKES_KEY, JSON.stringify(data));
+    safeStorage.saveJSON(MISTAKES_KEY, data);
     updateMistakeBadge();
   }
 
@@ -364,6 +369,7 @@
       else if (mod === "quiz") { buildQuizCategories(); showScreen("quiz-menu"); }
       else if (mod === "dialogue") { buildDialogueScenes(); showScreen("dialogue-menu"); }
       else if (mod === "mistakes") { buildMistakesScreen(); showScreen("mistakes"); }
+      else if (mod === "progress") { buildProgressScreen(); showScreen("progress"); }
     });
   });
 
@@ -371,7 +377,7 @@
   //  MODULE 1: ABC Letter Practice
   // ═══════════════════════════════════
 
-  const completedLetters = new Set(JSON.parse(localStorage.getItem("completedLetters") || "[]"));
+  const completedLetters = new Set(safeStorage.loadJSON("completedLetters", []) || []);
   let abcLetter = null, abcWordIdx = 0, abcScores = {};
   // Local working set of words for the current session — never mutates LETTER_DATA.
   // Initialized from LETTER_DATA on start, may be replaced with a weak-word subset on retry.
@@ -456,6 +462,7 @@
   function abcFinish(score) {
     const w = abcWords[abcWordIdx];
     abcScores[w.word] = score;
+    recordAnswer("abc", w.word, score);
 
     if (score < 3) {
       addMistake("abc", { letter: abcLetter, word: w.word, emoji: w.emoji });
@@ -494,7 +501,7 @@
     if (allPerfect) {
       $t.textContent = "🎉 全部满分！太厉害了！";
       completedLetters.add(abcLetter);
-      localStorage.setItem("completedLetters", JSON.stringify([...completedLetters]));
+      safeStorage.saveJSON("completedLetters", [...completedLetters]);
       celebrate();
     } else {
       $t.textContent = `字母 ${abcLetter} 练习完成！`;
@@ -629,6 +636,7 @@
   function quizShowFeedback(score) {
     const item = quizItems[quizIdx];
     quizScores[quizIdx] = score;
+    recordAnswer("quiz", item.en, score);
 
     if (score < 3) {
       addMistake("quiz", { en: item.en, cn: item.cn, emoji: item.emoji, category: quizCategory.id });
@@ -778,6 +786,7 @@
   function dlgShowFeedback(score) {
     const item = dlgItems[dlgIdx];
     dlgScores[dlgIdx] = score;
+    recordAnswer("dialogue", item.en, score);
 
     if (score < 3) {
       addMistake("dialogue", { en: item.en, cn: item.cn, scene: dlgScene.id });
@@ -990,8 +999,9 @@
   function mpShowFeedback(score) {
     const item = mpItems[mpIdx];
     mpScores[mpIdx] = score;
-
     const key = mpType === "abc" ? item.word : item.en;
+    recordAnswer(mpType, key, score);
+
     if (score >= 3) {
       removeMistake(mpType, key);
     }
@@ -1084,8 +1094,7 @@
   const COURSE_PROGRESS_KEY = "courseProgress";
 
   function loadCourseProgress() {
-    try { return JSON.parse(localStorage.getItem(COURSE_PROGRESS_KEY)) || {}; }
-    catch (e) { return {}; }
+    return safeStorage.loadJSON(COURSE_PROGRESS_KEY, {}) || {};
   }
 
   function saveCourseProgress(levelId, unitIdx, score) {
@@ -1093,7 +1102,7 @@
     const key = `${levelId}-${unitIdx}`;
     const prev = prog[key] || 0;
     if (score > prev) prog[key] = score;
-    localStorage.setItem(COURSE_PROGRESS_KEY, JSON.stringify(prog));
+    safeStorage.saveJSON(COURSE_PROGRESS_KEY, prog);
   }
 
   function getUnitScore(levelId, unitIdx) {
@@ -1294,6 +1303,10 @@
     } else {
       target = item.word;
     }
+    // Start parallel MediaRecorder capture so the child can replay their voice later
+    if (typeof voiceRecorder !== "undefined" && voiceRecorder.isSupported()) {
+      voiceRecorder.record(4500);  // fire and forget; resolves into a blob URL
+    }
     doRecognition(
       (results) => {
         if (item.type === "contrast" && cpContrastPhase === "short") {
@@ -1337,6 +1350,20 @@
       else if (item.type === "sentence") removeMistake("dialogue", item.en);
     }
 
+    // Record learning stats + update spaced repetition schedule
+    const srsKey = item.type === "word" ? `abc:${item.word}`
+                : item.type === "sentence" ? `dialogue:${item.en}`
+                : `contrast:${item.short.word}-${item.long.word}`;
+    recordAnswer(item.type === "sentence" ? "dialogue" : "abc", srsKey.split(":").slice(1).join(":"), score);
+    // Note: contrast items are tracked under "abc" type for stats simplicity
+
+    // Show recording replay area (if supported and we captured audio)
+    const $replayArea = $("cp-replay-area");
+    if ($replayArea) {
+      const hasRecording = typeof voiceRecorder !== "undefined" && voiceRecorder.hasRecording();
+      $replayArea.style.display = hasRecording ? "block" : "none";
+    }
+
     showFeedbackUI(cpDom, score);
 
     // Show AI help button when score is low and only for word items
@@ -1368,6 +1395,7 @@
     cpDom.aiLoading.style.display = "none";
 
     if (similarWords) {
+      if (typeof learningEngine !== "undefined") learningEngine.incrementAICalls();
       cpDom.aiResult.style.display = "block";
       cpDom.aiBtn.style.display = "none";
       cpDom.aiWords.innerHTML = "";
@@ -1493,6 +1521,30 @@
     else speak(item.word, 0.7);
   });
 
+  // Replay buttons (L3: recording playback for self-comparison)
+  const $playStandard = $("cp-play-standard");
+  const $playMine = $("cp-play-mine");
+  if ($playStandard) {
+    $playStandard.addEventListener("click", () => {
+      unlockIOSAudio();
+      const item = cpFlatItems[cpIdx];
+      if (!item) return;
+      if (item.type === "sentence") speak(item.en, 0.7);
+      else if (item.type === "word") speak(item.word, 0.7);
+      else if (item.type === "contrast") speak(item.short.word, 0.65);
+    });
+  }
+  if ($playMine) {
+    $playMine.addEventListener("click", () => {
+      if (typeof voiceRecorder !== "undefined" && voiceRecorder.hasRecording()) {
+        const ok = voiceRecorder.playLast();
+        if (!ok) showToast("无法播放录音", "error");
+      } else {
+        showToast("还没有录音，先点麦克风读一遍吧", "info");
+      }
+    });
+  }
+
   cpDom.recBtn.addEventListener("click", () => cpDoRecord());
 
   cpDom.retry.addEventListener("click", () => {
@@ -1514,9 +1566,145 @@
 
   $("cp-back").addEventListener("click", () => {
     window.speechSynthesis.cancel();
+    if (typeof voiceRecorder !== "undefined") voiceRecorder.release();
     if (cpLevel) buildCourseUnits(cpLevel);
     else showScreen("course");
   });
+
+  // ═══════════════════════════════════
+  //  MODULE 6: 我的进步 (Learning Stats + Spaced Repetition)
+  // ═══════════════════════════════════
+
+  function buildProgressScreen() {
+    const $content = $("progress-content");
+    if (!$content) return;
+    if (typeof learningEngine === "undefined") {
+      $content.innerHTML = `<p style="text-align:center;color:var(--text-light);padding:40px 0">统计功能加载失败</p>`;
+      return;
+    }
+
+    const stats = learningEngine.loadStats();
+    const streak = learningEngine.computeStreak();
+    const last7 = learningEngine.lastNDays(7);
+
+    // Accuracy
+    const accuracy = stats.totalItems > 0
+      ? Math.round(stats.totalCorrect / stats.totalItems * 100)
+      : 0;
+
+    // Find max for bar chart scaling
+    const maxCount = Math.max(1, ...last7.map(d => d.count));
+
+    // Chart bars
+    const chartBars = last7.map(d => {
+      const totalH = (d.count / maxCount) * 100;
+      const correctH = d.count > 0 ? (d.correct / d.count) * totalH : 0;
+      const wrongH = totalH - correctH;
+      return `
+        <div class="bar-col">
+          <div class="bar-stack">
+            ${wrongH > 0 ? `<div class="bar-wrong" style="height:${wrongH}%"></div>` : ""}
+            ${correctH > 0 ? `<div class="bar-correct" style="height:${correctH}%"></div>` : ""}
+            ${d.count === 0 ? `<div class="bar-empty"></div>` : ""}
+          </div>
+          <div class="bar-label">${d.label}</div>
+        </div>`;
+    }).join("");
+
+    // SRS due count
+    const srsData = learningEngine.loadSRS();
+    const dueCount = Object.entries(srsData).filter(([k, v]) => Date.now() >= (v.nextReview || 0)).length;
+
+    $content.innerHTML = `
+      <div class="streak-hero">
+        <span class="streak-flame">🔥</span>
+        <div class="streak-number">${streak}</div>
+        <div class="streak-label">${streak > 0 ? "天连续打卡！" : "今天开始学习吧！"}</div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-tile">
+          <div class="stat-tile-value">${stats.totalItems}</div>
+          <div class="stat-tile-label">已练习题数</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-tile-value">${accuracy}%</div>
+          <div class="stat-tile-label">总正确率</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-tile-value">${stats.totalSessions || 0}</div>
+          <div class="stat-tile-label">学习天数</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-tile-value">${stats.aiCalls || 0}</div>
+          <div class="stat-tile-label">AI 辅导次数</div>
+        </div>
+      </div>
+
+      <div class="stats-card">
+        <p class="stats-card-title">📈 最近 7 天</p>
+        <div class="bar-chart">${chartBars}</div>
+        <div class="bar-legend">
+          <div class="bar-legend-item"><span class="bar-legend-dot" style="background:var(--success)"></span>正确</div>
+          <div class="bar-legend-item"><span class="bar-legend-dot" style="background:var(--danger)"></span>错误</div>
+        </div>
+      </div>
+
+      <div class="stats-card">
+        <p class="stats-card-title">🔁 复习队列 (SM-2)</p>
+        <div class="review-queue">
+          ${dueCount > 0
+            ? `<p>今天需要复习 <span class="review-count">${dueCount}</span> 个单词/句子</p>
+               <p style="font-size:0.85rem;color:var(--text-light);margin-top:6px">
+                 根据艾宾浩斯遗忘曲线，这些已到最佳复习时间。</p>`
+            : `<p>🎉 今天没有需要复习的内容！</p>
+               <p style="font-size:0.85rem;color:var(--text-light);margin-top:6px">
+                 继续学习新内容吧。</p>`}
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:20px 0 0">
+        <button class="btn-primary" id="btn-review-due" ${dueCount === 0 ? "disabled" : ""}>
+          📝 开始复习 ${dueCount > 0 ? `(${dueCount})` : ""}
+        </button>
+      </div>
+    `;
+
+    const reviewBtn = $("btn-review-due");
+    if (reviewBtn && dueCount > 0) {
+      reviewBtn.addEventListener("click", () => startSRSReview());
+    }
+  }
+
+  // Start an SRS-driven review session using the mistake book
+  function startSRSReview() {
+    const mistakes = loadMistakes();
+    const srsData = learningEngine.loadSRS();
+    // Collect all mistake items with their srs keys, filter to due ones
+    const allItems = [];
+    ["abc", "quiz", "dialogue"].forEach(type => {
+      mistakes[type].forEach(item => {
+        const key = `${type}:${type === "abc" ? item.word : item.en}`;
+        const srs = srsData[key];
+        if (srs && Date.now() >= (srs.nextReview || 0)) {
+          allItems.push({ type, item, key });
+        }
+      });
+    });
+
+    if (allItems.length === 0) {
+      showToast("🎉 没有需要复习的内容！", "success");
+      return;
+    }
+
+    // Reuse the mistakes-practice flow by feeding it the due items
+    mpType = allItems[0].type;
+    mpItems = allItems.map(x => x.item);
+    mpIdx = 0;
+    mpScores = [];
+    showScreen("mistakes-practice");
+    mpShowItem();
+  }
 
   // ═══════════════════════════════════
   //  Global init

@@ -1,10 +1,13 @@
-const CACHE_NAME = "abc-pronunciation-v5";
+const CACHE_NAME = "abc-pronunciation-v6";
 const ASSETS = [
   "./index.html",
   "./style.css",
   "./data.js",
   "./data-quiz.js",
   "./data-levels.js",
+  "./storage.js",
+  "./stats.js",
+  "./recorder.js",
   "./glm.js",
   "./app.js",
   "./manifest.json",

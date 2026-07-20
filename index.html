@@ -67,6 +67,12 @@
           <span id="mistake-badge" class="mistake-badge" style="display:none"
                 role="status" aria-live="polite"></span>
         </button>
+        <button class="menu-card" data-module="progress"
+                aria-label="我的进步，查看学习统计">
+          <span class="menu-icon" aria-hidden="true">📊</span>
+          <div><span class="menu-title">我的进步</span>
+          <span class="menu-desc">打卡记录、学习统计</span></div>
+        </button>
       </div>
     </div>
 
@@ -268,9 +274,17 @@
       </div>
     </div>
 
-    <!-- ═══ 分级课程 - 级别选择 ═══ -->
-    <div id="screen-course" class="screen">
+    <!-- ═══ 我的进步 ═══ -->
+    <div id="screen-progress" class="screen">
       <div class="practice-header">
+        <button class="btn-back" data-go="menu">← 主菜单</button>
+        <h2 class="section-title">📊 我的进步</h2>
+      </div>
+      <div id="progress-content"></div>
+    </div>
+
+    <!-- ═══ 分级课程 - 级别选择 ═══ -->
+    <div id="screen-course" class="screen">      <div class="practice-header">
         <button class="btn-back" data-go="menu">← 主菜单</button>
         <h2 class="section-title">📚 分级课程</h2>
       </div>
@@ -339,6 +353,14 @@
       <div id="cp-feedback" class="quiz-feedback" style="display:none">
         <div id="cp-fb-stars" class="score-stars"></div>
         <p id="cp-fb-msg" class="score-message"></p>
+        <div id="cp-replay-area" class="replay-area" style="display:none">
+          <p class="replay-title">🎧 听听自己的发音</p>
+          <div class="replay-buttons">
+            <button id="cp-play-standard" class="btn-replay">🔊 标准音</button>
+            <button id="cp-play-mine" class="btn-replay btn-replay-mine">🎤 我的发音</button>
+          </div>
+          <p class="replay-hint">对比听听哪里不一样</p>
+        </div>
         <div id="cp-ai-help" class="ai-help-area" style="display:none">
           <button id="cp-ai-btn" class="btn-ai-help">🤖 AI 帮帮我</button>
           <div id="cp-ai-result" class="ai-result" style="display:none">
@@ -372,6 +394,9 @@
   <script src="data.js"></script>
   <script src="data-quiz.js"></script>
   <script src="data-levels.js"></script>
+  <script src="storage.js"></script>
+  <script src="stats.js"></script>
+  <script src="recorder.js"></script>
   <script src="glm.js"></script>
   <script src="app.js"></script>
   <script>
