@@ -179,6 +179,57 @@
   }
 
   // ═══════════════════════════════════
+  //  DOM cache + shared UI helpers (used by all practice modules)
+  // ═══════════════════════════════════
+
+  const $cache = {};
+  function $(id) {
+    return $cache[id] || ($cache[id] = document.getElementById(id));
+  }
+
+  // Escape dynamic text before injecting into innerHTML (XSS defense)
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+
+  // A "scoring DOM bundle" describes the shared UI surface that every practice
+  // module exposes: record button, recording indicator, feedback panel, score
+  // stars/message, optional answer reveal area, retry/next buttons.
+  // These helpers operate on such a bundle so each module doesn't repeat the
+  // same style.display / className / renderManualScore boilerplate.
+
+  function manualFallbackUI(dom, onScore) {
+    dom.recBtn.style.display = "none";
+    dom.recInd.style.display = "none";
+    dom.feedback.style.display = "flex";
+    dom.fbMsg.textContent = "家长请打分：";
+    dom.fbMsg.className = "score-message";
+    if (dom.fbAnswer) dom.fbAnswer.style.display = "none";
+    if (dom.aiHelp) dom.aiHelp.style.display = "none";
+    dom.retry.style.display = "none";
+    dom.next.style.display = "none";
+    renderManualScore(dom.fbStars, onScore);
+  }
+
+  function showFeedbackUI(dom, score) {
+    dom.recBtn.style.display = "none";
+    dom.feedback.style.display = "flex";
+    dom.retry.style.display = "inline-block";
+    dom.next.style.display = "inline-block";
+    showScoreUI(dom.fbStars, dom.fbMsg, score);
+  }
+
+  function prepareNextItemUI(dom) {
+    dom.recBtn.style.display = "flex";
+    dom.recInd.style.display = "none";
+    dom.feedback.style.display = "none";
+    if (dom.fbAnswer) dom.fbAnswer.style.display = "none";
+    if (dom.aiHelp) dom.aiHelp.style.display = "none";
+  }
+
+  // ═══════════════════════════════════
   //  Mistake Book (错题集)
   // ═══════════════════════════════════
 
@@ -276,6 +327,9 @@
 
   const completedLetters = new Set(JSON.parse(localStorage.getItem("completedLetters") || "[]"));
   let abcLetter = null, abcWordIdx = 0, abcScores = {};
+  // Local working set of words for the current session — never mutates LETTER_DATA.
+  // Initialized from LETTER_DATA on start, may be replaced with a weak-word subset on retry.
+  let abcWords = [];
 
   const $grid = document.getElementById("letter-grid");
   const $stepLetter = document.getElementById("step-letter");
@@ -290,11 +344,6 @@
   const $scoreStars = document.getElementById("score-stars");
   const $scoreMessage = document.getElementById("score-message");
 
-  function abcCleanup() {
-    const d = LETTER_DATA[abcLetter];
-    if (d && d._orig) { d.words = d._orig; delete d._orig; }
-  }
-
   function buildLetterGrid() {
     $grid.innerHTML = "";
     Object.keys(LETTER_DATA).forEach((letter, i) => {
@@ -308,10 +357,10 @@
   }
 
   function abcStart(letter) {
-    abcCleanup();
     abcLetter = letter;
     abcWordIdx = 0;
     abcScores = {};
+    abcWords = LETTER_DATA[letter].words;   // shallow ref, never mutated
     showScreen("practice");
     $stepLetter.style.display = "flex";
     $stepWord.style.display = "none";
@@ -321,12 +370,11 @@
   }
 
   function abcUpdateProgress() {
-    const total = LETTER_DATA[abcLetter].words.length;
-    $progressFill.style.width = (abcWordIdx / total * 100) + "%";
+    $progressFill.style.width = (abcWordIdx / abcWords.length * 100) + "%";
   }
 
   function abcShowWord() {
-    const w = LETTER_DATA[abcLetter].words[abcWordIdx];
+    const w = abcWords[abcWordIdx];
     $stepLetter.style.display = "none";
     $stepWord.style.display = "flex";
     $scoreDisplay.style.display = "none";
@@ -339,7 +387,7 @@
   }
 
   function abcDoRecord() {
-    const target = LETTER_DATA[abcLetter].words[abcWordIdx].word;
+    const target = abcWords[abcWordIdx].word;
     doRecognition(
       (results) => abcFinish(calcScore(results, target)),
       () => abcManualScore(),
@@ -351,15 +399,15 @@
     $btnRecord.style.display = "none";
     $recIndicator.style.display = "none";
     $scoreDisplay.style.display = "flex";
-    document.getElementById("btn-retry-word").style.display = "none";
-    document.getElementById("btn-next-word").style.display = "none";
+    $("btn-retry-word").style.display = "none";
+    $("btn-next-word").style.display = "none";
     $scoreMessage.textContent = "家长请打分：";
     $scoreMessage.className = "score-message";
     renderManualScore($scoreStars, (s) => abcFinish(s));
   }
 
   function abcFinish(score) {
-    const w = LETTER_DATA[abcLetter].words[abcWordIdx];
+    const w = abcWords[abcWordIdx];
     abcScores[w.word] = score;
 
     if (score < 3) {
@@ -370,31 +418,30 @@
 
     $btnRecord.style.display = "none";
     $scoreDisplay.style.display = "flex";
-    document.getElementById("btn-retry-word").style.display = "inline-block";
-    document.getElementById("btn-next-word").style.display = "inline-block";
+    $("btn-retry-word").style.display = "inline-block";
+    $("btn-next-word").style.display = "inline-block";
     showScoreUI($scoreStars, $scoreMessage, score);
   }
 
   function abcNext() {
     abcWordIdx++;
-    if (abcWordIdx >= LETTER_DATA[abcLetter].words.length) abcResults();
+    if (abcWordIdx >= abcWords.length) abcResults();
     else abcShowWord();
   }
 
   function abcResults() {
     showScreen("result");
-    const data = LETTER_DATA[abcLetter];
     const weak = [];
     let allPerfect = true;
-    const $t = document.getElementById("result-title");
-    const $s = document.getElementById("result-summary");
-    const $b = document.getElementById("result-buttons");
+    const $t = $("result-title");
+    const $s = $("result-summary");
+    const $b = $("result-buttons");
     $s.innerHTML = "";
-    data.words.forEach(w => {
+    abcWords.forEach(w => {
       const sc = abcScores[w.word] || 1;
       if (sc < 3) { weak.push(w); allPerfect = false; }
       $s.innerHTML += `<div class="result-item${sc<3?" needs-practice":""}">
-        <div class="word-info"><span class="emoji">${w.emoji}</span><span>${w.word}</span></div>
+        <div class="word-info"><span class="emoji">${w.emoji}</span><span>${escapeHtml(w.word)}</span></div>
         <span class="stars">${"⭐".repeat(sc)}</span></div>`;
     });
     if (allPerfect) {
@@ -411,9 +458,8 @@
       rb.className = "btn-primary";
       rb.textContent = "🔄 重新练习不熟的单词";
       rb.addEventListener("click", () => {
-        const d = LETTER_DATA[abcLetter];
-        d._orig = d._orig || [...d.words];
-        d.words = weak;
+        // Replace working set with the weak subset — no mutation of LETTER_DATA
+        abcWords = weak;
         abcWordIdx = 0; abcScores = {};
         showScreen("practice");
         $stepLetter.style.display = "none";
@@ -434,7 +480,7 @@
     const hb = document.createElement("button");
     hb.className = "btn-secondary";
     hb.textContent = "🏠 回到主菜单";
-    hb.addEventListener("click", () => { abcCleanup(); showScreen("menu"); });
+    hb.addEventListener("click", () => showScreen("menu"));
     $b.appendChild(hb);
   }
 
@@ -445,20 +491,19 @@
   document.getElementById("btn-next-to-word").addEventListener("click", () => abcShowWord());
   document.getElementById("btn-play-word").addEventListener("click", () => {
     unlockIOSAudio();
-    speak(LETTER_DATA[abcLetter].words[abcWordIdx].word, 0.75);
+    speak(abcWords[abcWordIdx].word, 0.75);
   });
   $btnRecord.addEventListener("click", () => abcDoRecord());
   document.getElementById("btn-retry-word").addEventListener("click", () => {
     $scoreDisplay.style.display = "none";
     $btnRecord.style.display = "flex";
-    speak(LETTER_DATA[abcLetter].words[abcWordIdx].word, 0.75);
+    speak(abcWords[abcWordIdx].word, 0.75);
   });
   document.getElementById("btn-next-word").addEventListener("click", () => abcNext());
 
-  // FIX: Single dedicated back handler for practice screen (no double binding)
+  // Back button for the practice screen (no cleanup needed — LETTER_DATA is never mutated now)
   document.querySelector("#screen-practice .btn-back").addEventListener("click", () => {
     window.speechSynthesis.cancel();
-    abcCleanup();
     buildLetterGrid();
     showScreen("abc");
   });
@@ -470,20 +515,25 @@
   let quizCategory = null, quizItems = [], quizIdx = 0, quizScores = [];
   const QUIZ_PER_ROUND = 5;
 
-  const $quizEmoji = document.getElementById("quiz-emoji");
-  const $quizPrompt = document.getElementById("quiz-prompt");
-  const $quizPlayHint = document.getElementById("quiz-play-hint");
-  const $quizRecBtn = document.getElementById("quiz-record");
-  const $quizRecInd = document.getElementById("quiz-rec-indicator");
-  const $quizFeedback = document.getElementById("quiz-feedback");
-  const $quizFbStars = document.getElementById("quiz-fb-stars");
-  const $quizFbMsg = document.getElementById("quiz-fb-msg");
-  const $quizFbAnswer = document.getElementById("quiz-fb-answer");
-  const $quizProgressFill = document.getElementById("quiz-progress-fill");
-  const $quizCounter = document.getElementById("quiz-counter");
+  // Centralized DOM bundle for the Quiz module (cached once, reused everywhere)
+  const quizDom = {
+    emoji: $("quiz-emoji"),
+    prompt: $("quiz-prompt"),
+    playHint: $("quiz-play-hint"),
+    recBtn: $("quiz-record"),
+    recInd: $("quiz-rec-indicator"),
+    feedback: $("quiz-feedback"),
+    fbStars: $("quiz-fb-stars"),
+    fbMsg: $("quiz-fb-msg"),
+    fbAnswer: $("quiz-fb-answer"),
+    progressFill: $("quiz-progress-fill"),
+    counter: $("quiz-counter"),
+    retry: $("quiz-retry"),
+    next: $("quiz-next"),
+  };
 
   function buildQuizCategories() {
-    const grid = document.getElementById("quiz-category-grid");
+    const grid = $("quiz-category-grid");
     grid.innerHTML = "";
     QUIZ_CATEGORIES.forEach(cat => {
       const btn = document.createElement("button");
@@ -511,14 +561,11 @@
 
   function quizShowItem() {
     const item = quizItems[quizIdx];
-    $quizEmoji.textContent = item.emoji;
-    $quizPrompt.innerHTML = `这是什么？<br><span style="font-size:1rem;color:#999">用英语说出它的名字</span>`;
-    $quizPlayHint.style.display = "none";
-    $quizRecBtn.style.display = "flex";
-    $quizRecInd.style.display = "none";
-    $quizFeedback.style.display = "none";
-    $quizProgressFill.style.width = (quizIdx / quizItems.length * 100) + "%";
-    $quizCounter.textContent = `${quizIdx + 1}/${quizItems.length}`;
+    quizDom.emoji.textContent = item.emoji;
+    quizDom.prompt.innerHTML = `这是什么？<br><span style="font-size:1rem;color:#999">用英语说出它的名字</span>`;
+    prepareNextItemUI(quizDom);
+    quizDom.progressFill.style.width = (quizIdx / quizItems.length * 100) + "%";
+    quizDom.counter.textContent = `${quizIdx + 1}/${quizItems.length}`;
   }
 
   function quizDoRecord() {
@@ -526,21 +573,9 @@
     const item = quizItems[quizIdx];
     doRecognition(
       (results) => quizShowFeedback(calcScore(results, item.en)),
-      () => quizManualFallback(),
-      $quizRecBtn, $quizRecInd
+      () => manualFallbackUI(quizDom, (s) => quizShowFeedback(s)),
+      quizDom.recBtn, quizDom.recInd
     );
-  }
-
-  function quizManualFallback() {
-    $quizRecBtn.style.display = "none";
-    $quizRecInd.style.display = "none";
-    $quizFeedback.style.display = "flex";
-    $quizFbMsg.textContent = "家长请打分：";
-    $quizFbMsg.className = "score-message";
-    $quizFbAnswer.style.display = "none";
-    document.getElementById("quiz-retry").style.display = "none";
-    document.getElementById("quiz-next").style.display = "none";
-    renderManualScore($quizFbStars, (s) => quizShowFeedback(s));
   }
 
   function quizShowFeedback(score) {
@@ -553,20 +588,16 @@
       removeMistake("quiz", item.en);
     }
 
-    $quizRecBtn.style.display = "none";
-    $quizFeedback.style.display = "flex";
-    document.getElementById("quiz-retry").style.display = "inline-block";
-    document.getElementById("quiz-next").style.display = "inline-block";
-    showScoreUI($quizFbStars, $quizFbMsg, score);
+    showFeedbackUI(quizDom, score);
 
     if (score < 3) {
-      $quizFbAnswer.style.display = "block";
-      $quizFbAnswer.innerHTML = `正确答案：<strong>${item.en}</strong>（${item.cn}）`;
-      $quizPlayHint.style.display = "inline-block";
+      quizDom.fbAnswer.style.display = "block";
+      quizDom.fbAnswer.innerHTML = `正确答案：<strong>${escapeHtml(item.en)}</strong>（${escapeHtml(item.cn)}）`;
+      quizDom.playHint.style.display = "inline-block";
       speak(item.en, 0.7);
     } else {
-      $quizFbAnswer.style.display = "none";
-      $quizPlayHint.style.display = "none";
+      quizDom.fbAnswer.style.display = "none";
+      quizDom.playHint.style.display = "none";
     }
   }
 
@@ -619,12 +650,12 @@
     $b.appendChild(hb);
   }
 
-  $quizRecBtn.addEventListener("click", () => quizDoRecord());
-  $quizPlayHint.addEventListener("click", () => { unlockIOSAudio(); speak(quizItems[quizIdx].en, 0.7); });
-  document.getElementById("quiz-retry").addEventListener("click", () => {
-    $quizFeedback.style.display = "none"; $quizRecBtn.style.display = "flex";
+  quizDom.recBtn.addEventListener("click", () => quizDoRecord());
+  quizDom.playHint.addEventListener("click", () => { unlockIOSAudio(); speak(quizItems[quizIdx].en, 0.7); });
+  quizDom.retry.addEventListener("click", () => {
+    quizDom.feedback.style.display = "none"; quizDom.recBtn.style.display = "flex";
   });
-  document.getElementById("quiz-next").addEventListener("click", () => quizNext());
+  quizDom.next.addEventListener("click", () => quizNext());
 
   // ═══════════════════════════════════
   //  MODULE 3: Dialogue (日常对话跟读)
@@ -632,19 +663,24 @@
 
   let dlgScene = null, dlgItems = [], dlgIdx = 0, dlgScores = [];
 
-  const $dlgCn = document.getElementById("dlg-cn-text");
-  const $dlgEn = document.getElementById("dlg-en-text");
-  const $dlgPlay = document.getElementById("dlg-play");
-  const $dlgRecBtn = document.getElementById("dlg-record");
-  const $dlgRecInd = document.getElementById("dlg-rec-indicator");
-  const $dlgFeedback = document.getElementById("dlg-feedback");
-  const $dlgFbStars = document.getElementById("dlg-fb-stars");
-  const $dlgFbMsg = document.getElementById("dlg-fb-msg");
-  const $dlgProgressFill = document.getElementById("dlg-progress-fill");
-  const $dlgCounter = document.getElementById("dlg-counter");
+  // Centralized DOM bundle for the Dialogue module
+  const dlgDom = {
+    cn: $("dlg-cn-text"),
+    en: $("dlg-en-text"),
+    play: $("dlg-play"),
+    recBtn: $("dlg-record"),
+    recInd: $("dlg-rec-indicator"),
+    feedback: $("dlg-feedback"),
+    fbStars: $("dlg-fb-stars"),
+    fbMsg: $("dlg-fb-msg"),
+    progressFill: $("dlg-progress-fill"),
+    counter: $("dlg-counter"),
+    retry: $("dlg-retry"),
+    next: $("dlg-next"),
+  };
 
   function buildDialogueScenes() {
-    const grid = document.getElementById("dialogue-scene-grid");
+    const grid = $("dialogue-scene-grid");
     grid.innerHTML = "";
     DIALOGUE_SCENES.forEach(scene => {
       const btn = document.createElement("button");
@@ -672,13 +708,11 @@
 
   function dlgShowItem() {
     const item = dlgItems[dlgIdx];
-    $dlgCn.textContent = item.cn;
-    $dlgEn.textContent = item.en;
-    $dlgRecBtn.style.display = "flex";
-    $dlgRecInd.style.display = "none";
-    $dlgFeedback.style.display = "none";
-    $dlgProgressFill.style.width = (dlgIdx / dlgItems.length * 100) + "%";
-    $dlgCounter.textContent = `${dlgIdx + 1}/${dlgItems.length}`;
+    dlgDom.cn.textContent = item.cn;
+    dlgDom.en.textContent = item.en;
+    prepareNextItemUI(dlgDom);
+    dlgDom.progressFill.style.width = (dlgIdx / dlgItems.length * 100) + "%";
+    dlgDom.counter.textContent = `${dlgIdx + 1}/${dlgItems.length}`;
     setTimeout(() => speak(item.en, 0.7), 300);
   }
 
@@ -687,20 +721,9 @@
     const item = dlgItems[dlgIdx];
     doRecognition(
       (results) => dlgShowFeedback(calcScore(results, item.en)),
-      () => dlgManualFallback(),
-      $dlgRecBtn, $dlgRecInd
+      () => manualFallbackUI(dlgDom, (s) => dlgShowFeedback(s)),
+      dlgDom.recBtn, dlgDom.recInd
     );
-  }
-
-  function dlgManualFallback() {
-    $dlgRecBtn.style.display = "none";
-    $dlgRecInd.style.display = "none";
-    $dlgFeedback.style.display = "flex";
-    $dlgFbMsg.textContent = "家长请打分：";
-    $dlgFbMsg.className = "score-message";
-    document.getElementById("dlg-retry").style.display = "none";
-    document.getElementById("dlg-next").style.display = "none";
-    renderManualScore($dlgFbStars, (s) => dlgShowFeedback(s));
   }
 
   function dlgShowFeedback(score) {
@@ -713,11 +736,7 @@
       removeMistake("dialogue", item.en);
     }
 
-    $dlgRecBtn.style.display = "none";
-    $dlgFeedback.style.display = "flex";
-    document.getElementById("dlg-retry").style.display = "inline-block";
-    document.getElementById("dlg-next").style.display = "inline-block";
-    showScoreUI($dlgFbStars, $dlgFbMsg, score);
+    showFeedbackUI(dlgDom, score);
   }
 
   function dlgNext() {
@@ -769,13 +788,13 @@
     $b.appendChild(hb);
   }
 
-  $dlgPlay.addEventListener("click", () => { unlockIOSAudio(); speak(dlgItems[dlgIdx].en, 0.7); });
-  $dlgRecBtn.addEventListener("click", () => dlgDoRecord());
-  document.getElementById("dlg-retry").addEventListener("click", () => {
-    $dlgFeedback.style.display = "none"; $dlgRecBtn.style.display = "flex";
+  dlgDom.play.addEventListener("click", () => { unlockIOSAudio(); speak(dlgItems[dlgIdx].en, 0.7); });
+  dlgDom.recBtn.addEventListener("click", () => dlgDoRecord());
+  dlgDom.retry.addEventListener("click", () => {
+    dlgDom.feedback.style.display = "none"; dlgDom.recBtn.style.display = "flex";
     speak(dlgItems[dlgIdx].en, 0.7);
   });
-  document.getElementById("dlg-next").addEventListener("click", () => dlgNext());
+  dlgDom.next.addEventListener("click", () => dlgNext());
 
   // ═══════════════════════════════════
   //  MODULE 4: Mistake Book (错题集页面)
@@ -783,17 +802,22 @@
 
   let mpType = null, mpItems = [], mpIdx = 0, mpScores = [];
 
-  const $mpEmoji = document.getElementById("mp-emoji");
-  const $mpPrompt = document.getElementById("mp-prompt");
-  const $mpPlay = document.getElementById("mp-play");
-  const $mpRecBtn = document.getElementById("mp-record");
-  const $mpRecInd = document.getElementById("mp-rec-indicator");
-  const $mpFeedback = document.getElementById("mp-feedback");
-  const $mpFbStars = document.getElementById("mp-fb-stars");
-  const $mpFbMsg = document.getElementById("mp-fb-msg");
-  const $mpFbAnswer = document.getElementById("mp-fb-answer");
-  const $mpProgressFill = document.getElementById("mp-progress-fill");
-  const $mpCounter = document.getElementById("mp-counter");
+  // Centralized DOM bundle for Mistakes-Practice module
+  const mpDom = {
+    emoji: $("mp-emoji"),
+    prompt: $("mp-prompt"),
+    play: $("mp-play"),
+    recBtn: $("mp-record"),
+    recInd: $("mp-rec-indicator"),
+    feedback: $("mp-feedback"),
+    fbStars: $("mp-fb-stars"),
+    fbMsg: $("mp-fb-msg"),
+    fbAnswer: $("mp-fb-answer"),
+    progressFill: $("mp-progress-fill"),
+    counter: $("mp-counter"),
+    retry: $("mp-retry"),
+    next: $("mp-next"),
+  };
 
   function buildMistakesScreen() {
     const data = loadMistakes();
@@ -881,26 +905,23 @@
 
   function mpShowItem() {
     const item = mpItems[mpIdx];
-    $mpRecBtn.style.display = "flex";
-    $mpRecInd.style.display = "none";
-    $mpFeedback.style.display = "none";
-    $mpFbAnswer.style.display = "none";
-    $mpProgressFill.style.width = (mpIdx / mpItems.length * 100) + "%";
-    $mpCounter.textContent = `${mpIdx + 1}/${mpItems.length}`;
+    prepareNextItemUI(mpDom);
+    mpDom.progressFill.style.width = (mpIdx / mpItems.length * 100) + "%";
+    mpDom.counter.textContent = `${mpIdx + 1}/${mpItems.length}`;
 
     if (mpType === "abc") {
-      $mpEmoji.textContent = item.emoji;
-      $mpPrompt.innerHTML = `字母 <strong>${item.letter}</strong> 的单词`;
-      $mpPlay.onclick = () => { unlockIOSAudio(); speak(item.word, 0.7); };
+      mpDom.emoji.textContent = item.emoji;
+      mpDom.prompt.innerHTML = `字母 <strong>${escapeHtml(item.letter)}</strong> 的单词`;
+      mpDom.play.onclick = () => { unlockIOSAudio(); speak(item.word, 0.7); };
       setTimeout(() => speak(item.word, 0.7), 300);
     } else if (mpType === "quiz") {
-      $mpEmoji.textContent = item.emoji;
-      $mpPrompt.innerHTML = `这是什么？<br><span style="font-size:1rem;color:#999">${item.cn}</span>`;
-      $mpPlay.onclick = () => { unlockIOSAudio(); speak(item.en, 0.7); };
+      mpDom.emoji.textContent = item.emoji;
+      mpDom.prompt.innerHTML = `这是什么？<br><span style="font-size:1rem;color:#999">${escapeHtml(item.cn)}</span>`;
+      mpDom.play.onclick = () => { unlockIOSAudio(); speak(item.en, 0.7); };
     } else {
-      $mpEmoji.textContent = "💬";
-      $mpPrompt.innerHTML = `<span style="font-size:1.1rem">${item.cn}</span><br><span style="color:var(--primary);font-weight:700">${item.en}</span>`;
-      $mpPlay.onclick = () => { unlockIOSAudio(); speak(item.en, 0.7); };
+      mpDom.emoji.textContent = "💬";
+      mpDom.prompt.innerHTML = `<span style="font-size:1.1rem">${escapeHtml(item.cn)}</span><br><span style="color:var(--primary);font-weight:700">${escapeHtml(item.en)}</span>`;
+      mpDom.play.onclick = () => { unlockIOSAudio(); speak(item.en, 0.7); };
       setTimeout(() => speak(item.en, 0.7), 300);
     }
   }
@@ -911,21 +932,9 @@
     const target = mpType === "abc" ? item.word : item.en;
     doRecognition(
       (results) => mpShowFeedback(calcScore(results, target)),
-      () => mpManualFallback(),
-      $mpRecBtn, $mpRecInd
+      () => manualFallbackUI(mpDom, (s) => mpShowFeedback(s)),
+      mpDom.recBtn, mpDom.recInd
     );
-  }
-
-  function mpManualFallback() {
-    $mpRecBtn.style.display = "none";
-    $mpRecInd.style.display = "none";
-    $mpFeedback.style.display = "flex";
-    $mpFbMsg.textContent = "家长请打分：";
-    $mpFbMsg.className = "score-message";
-    $mpFbAnswer.style.display = "none";
-    document.getElementById("mp-retry").style.display = "none";
-    document.getElementById("mp-next").style.display = "none";
-    renderManualScore($mpFbStars, (s) => mpShowFeedback(s));
   }
 
   function mpShowFeedback(score) {
@@ -937,20 +946,16 @@
       removeMistake(mpType, key);
     }
 
-    $mpRecBtn.style.display = "none";
-    $mpFeedback.style.display = "flex";
-    document.getElementById("mp-retry").style.display = "inline-block";
-    document.getElementById("mp-next").style.display = "inline-block";
-    showScoreUI($mpFbStars, $mpFbMsg, score);
+    showFeedbackUI(mpDom, score);
 
     if (score < 3) {
       const answer = mpType === "abc" ? item.word : item.en;
-      const extra = mpType === "quiz" ? `（${item.cn}）` : "";
-      $mpFbAnswer.style.display = "block";
-      $mpFbAnswer.innerHTML = `正确答案：<strong>${answer}</strong>${extra}`;
+      const extra = mpType === "quiz" ? `（${escapeHtml(item.cn)}）` : "";
+      mpDom.fbAnswer.style.display = "block";
+      mpDom.fbAnswer.innerHTML = `正确答案：<strong>${escapeHtml(answer)}</strong>${extra}`;
       speak(answer, 0.7);
     } else {
-      $mpFbAnswer.style.display = "none";
+      mpDom.fbAnswer.style.display = "none";
     }
   }
 
@@ -1008,15 +1013,15 @@
     $b.appendChild(hb);
   }
 
-  $mpRecBtn.addEventListener("click", () => mpDoRecord());
-  document.getElementById("mp-retry").addEventListener("click", () => {
-    $mpFeedback.style.display = "none";
-    $mpRecBtn.style.display = "flex";
+  mpDom.recBtn.addEventListener("click", () => mpDoRecord());
+  mpDom.retry.addEventListener("click", () => {
+    mpDom.feedback.style.display = "none";
+    mpDom.recBtn.style.display = "flex";
     const item = mpItems[mpIdx];
     speak(mpType === "abc" ? item.word : item.en, 0.7);
   });
-  document.getElementById("mp-next").addEventListener("click", () => mpNext());
-  document.getElementById("mp-back").addEventListener("click", () => {
+  mpDom.next.addEventListener("click", () => mpNext());
+  $("mp-back").addEventListener("click", () => {
     window.speechSynthesis.cancel();
     buildMistakesScreen();
     showScreen("mistakes");
@@ -1107,28 +1112,37 @@
 
   // Course Practice state
   let cpUnit = null, cpUnitIdx = 0, cpFlatItems = [], cpIdx = 0, cpScores = [];
+  let cpContrastPhase = "short";   // "short" → "long" → done
+  let cpContrastScore1 = 0;
 
-  const $cpCard = document.getElementById("cp-card");
-  const $cpContrast = document.getElementById("cp-contrast-card");
-  const $cpEmoji = document.getElementById("cp-emoji");
-  const $cpPrompt = document.getElementById("cp-prompt");
-  const $cpCn = document.getElementById("cp-cn");
-  const $cpSoundRule = document.getElementById("cp-sound-rule");
-  const $cpPlay = document.getElementById("cp-play");
-  const $cpRecBtn = document.getElementById("cp-record");
-  const $cpRecLabel = document.getElementById("cp-record-label");
-  const $cpRecInd = document.getElementById("cp-rec-indicator");
-  const $cpFeedback = document.getElementById("cp-feedback");
-  const $cpFbStars = document.getElementById("cp-fb-stars");
-  const $cpFbMsg = document.getElementById("cp-fb-msg");
-  const $cpProgressFill = document.getElementById("cp-progress-fill");
-  const $cpCounter = document.getElementById("cp-counter");
-  const $cpAiHelp = document.getElementById("cp-ai-help");
-  const $cpAiBtn = document.getElementById("cp-ai-btn");
-  const $cpAiResult = document.getElementById("cp-ai-result");
-  const $cpAiWords = document.getElementById("cp-ai-words");
-  const $cpAiTip = document.getElementById("cp-ai-tip");
-  const $cpAiLoading = document.getElementById("cp-ai-loading");
+  // Centralized DOM bundle for Course Practice module
+  const cpDom = {
+    card: $("cp-card"),
+    contrast: $("cp-contrast-card"),
+    emoji: $("cp-emoji"),
+    prompt: $("cp-prompt"),
+    cn: $("cp-cn"),
+    soundRule: $("cp-sound-rule"),
+    play: $("cp-play"),
+    recBtn: $("cp-record"),
+    recLabel: $("cp-record-label"),
+    recInd: $("cp-rec-indicator"),
+    feedback: $("cp-feedback"),
+    fbStars: $("cp-fb-stars"),
+    fbMsg: $("cp-fb-msg"),
+    progressFill: $("cp-progress-fill"),
+    counter: $("cp-counter"),
+    aiHelp: $("cp-ai-help"),
+    aiBtn: $("cp-ai-btn"),
+    aiResult: $("cp-ai-result"),
+    aiWords: $("cp-ai-words"),
+    aiTip: $("cp-ai-tip"),
+    aiLoading: $("cp-ai-loading"),
+    retry: $("cp-retry"),
+    next: $("cp-next"),
+    shortPlay: $("cp-short-play"),
+    longPlay: $("cp-long-play"),
+  };
 
   // Flatten unit items into a sequential list for practice
   function flattenUnitItems(unit) {
@@ -1170,58 +1184,54 @@
     cpFlatItems = flattenUnitItems(cpUnit);
     cpIdx = 0;
     cpScores = [];
+    cpContrastPhase = "short";
     showScreen("course-practice");
     cpShowItem();
   }
 
   function cpShowItem() {
     const item = cpFlatItems[cpIdx];
-    $cpRecBtn.style.display = "flex";
-    $cpRecInd.style.display = "none";
-    $cpFeedback.style.display = "none";
-    $cpAiHelp.style.display = "none";
-    $cpProgressFill.style.width = (cpIdx / cpFlatItems.length * 100) + "%";
-    $cpCounter.textContent = `${cpIdx + 1}/${cpFlatItems.length}`;
+    prepareNextItemUI(cpDom);
+    cpDom.progressFill.style.width = (cpIdx / cpFlatItems.length * 100) + "%";
+    cpDom.counter.textContent = `${cpIdx + 1}/${cpFlatItems.length}`;
 
     if (item.type === "contrast") {
-      $cpCard.style.display = "none";
-      $cpContrast.style.display = "block";
-      document.getElementById("cp-short-emoji").textContent = item.short.emoji;
-      document.getElementById("cp-short-word").textContent = item.short.word;
-      document.getElementById("cp-short-sound").textContent = item.short.sound;
-      document.getElementById("cp-long-emoji").textContent = item.long.emoji;
-      document.getElementById("cp-long-word").textContent = item.long.word;
-      document.getElementById("cp-long-sound").textContent = item.long.sound;
-      $cpRecLabel.textContent = "读左边的词";
       cpContrastPhase = "short";
+      cpDom.card.style.display = "none";
+      cpDom.contrast.style.display = "block";
+      $("cp-short-emoji").textContent = item.short.emoji;
+      $("cp-short-word").textContent = item.short.word;
+      $("cp-short-sound").textContent = item.short.sound;
+      $("cp-long-emoji").textContent = item.long.emoji;
+      $("cp-long-word").textContent = item.long.word;
+      $("cp-long-sound").textContent = item.long.sound;
+      cpDom.recLabel.textContent = "读左边的词";
       setTimeout(() => speak(item.short.word, 0.65), 300);
     } else if (item.type === "sentence") {
-      $cpContrast.style.display = "none";
-      $cpCard.style.display = "flex";
-      $cpEmoji.textContent = "💬";
-      $cpPrompt.innerHTML = `<span style="font-size:1.1rem">${item.cn}</span><br><span style="color:var(--primary);font-weight:700;font-size:1.3rem">${item.en}</span>`;
-      $cpCn.textContent = "";
-      $cpSoundRule.style.display = "none";
-      $cpRecLabel.textContent = "跟读";
+      cpDom.contrast.style.display = "none";
+      cpDom.card.style.display = "flex";
+      cpDom.emoji.textContent = "💬";
+      cpDom.prompt.innerHTML = `<span style="font-size:1.1rem">${escapeHtml(item.cn)}</span><br><span style="color:var(--primary);font-weight:700;font-size:1.3rem">${escapeHtml(item.en)}</span>`;
+      cpDom.cn.textContent = "";
+      cpDom.soundRule.style.display = "none";
+      cpDom.recLabel.textContent = "跟读";
       setTimeout(() => speak(item.en, 0.7), 300);
     } else {
-      $cpContrast.style.display = "none";
-      $cpCard.style.display = "flex";
-      $cpEmoji.textContent = item.emoji;
-      $cpPrompt.textContent = item.word;
-      $cpCn.textContent = item.cn;
+      cpDom.contrast.style.display = "none";
+      cpDom.card.style.display = "flex";
+      cpDom.emoji.textContent = item.emoji;
+      cpDom.prompt.textContent = item.word;
+      cpDom.cn.textContent = item.cn;
       if (item.sound) {
-        $cpSoundRule.textContent = `${item.letter} = ${item.sound}`;
-        $cpSoundRule.style.display = "inline-block";
+        cpDom.soundRule.textContent = `${item.letter} = ${item.sound}`;
+        cpDom.soundRule.style.display = "inline-block";
       } else {
-        $cpSoundRule.style.display = "none";
+        cpDom.soundRule.style.display = "none";
       }
-      $cpRecLabel.textContent = "说一说";
+      cpDom.recLabel.textContent = "说一说";
       setTimeout(() => speak(item.word, 0.7), 300);
     }
   }
-
-  let cpContrastPhase = "short";
 
   function cpDoRecord() {
     unlockIOSAudio();
@@ -1237,11 +1247,10 @@
     doRecognition(
       (results) => {
         if (item.type === "contrast" && cpContrastPhase === "short") {
-          const s1 = calcScore(results, target);
-          cpContrastScore1 = s1;
+          cpContrastScore1 = calcScore(results, target);
           cpContrastPhase = "long";
-          $cpRecLabel.textContent = "读右边的词";
-          $cpRecBtn.style.display = "flex";
+          cpDom.recLabel.textContent = "读右边的词";
+          cpDom.recBtn.style.display = "flex";
           speak(item.long.word, 0.65);
         } else if (item.type === "contrast" && cpContrastPhase === "long") {
           const s2 = calcScore(results, target);
@@ -1252,22 +1261,13 @@
         }
       },
       () => cpManualFallback(),
-      $cpRecBtn, $cpRecInd
+      cpDom.recBtn, cpDom.recInd
     );
   }
 
-  let cpContrastScore1 = 0;
-
   function cpManualFallback() {
-    $cpRecBtn.style.display = "none";
-    $cpRecInd.style.display = "none";
-    $cpFeedback.style.display = "flex";
-    $cpFbMsg.textContent = "家长请打分：";
-    $cpFbMsg.className = "score-message";
-    $cpAiHelp.style.display = "none";
-    document.getElementById("cp-retry").style.display = "none";
-    document.getElementById("cp-next").style.display = "none";
-    renderManualScore($cpFbStars, (s) => cpShowFeedback(s));
+    manualFallbackUI(cpDom, (s) => cpShowFeedback(s));
+    cpDom.fbAnswer.style.display = "none";
   }
 
   function cpShowFeedback(score) {
@@ -1286,70 +1286,67 @@
       else if (item.type === "sentence") removeMistake("dialogue", item.en);
     }
 
-    $cpRecBtn.style.display = "none";
-    $cpFeedback.style.display = "flex";
-    document.getElementById("cp-retry").style.display = "inline-block";
-    document.getElementById("cp-next").style.display = "inline-block";
-    showScoreUI($cpFbStars, $cpFbMsg, score);
+    showFeedbackUI(cpDom, score);
 
-    // Show AI help button when score is low
+    // Show AI help button when score is low and only for word items
     if (score <= 1 && item.type === "word" && typeof callGLM === "function") {
-      $cpAiHelp.style.display = "flex";
-      $cpAiBtn.style.display = "inline-block";
-      $cpAiBtn.disabled = false;
-      $cpAiResult.style.display = "none";
-      $cpAiLoading.style.display = "none";
+      cpDom.aiHelp.style.display = "flex";
+      cpDom.aiBtn.style.display = "inline-block";
+      cpDom.aiBtn.disabled = false;
+      cpDom.aiResult.style.display = "none";
+      cpDom.aiLoading.style.display = "none";
     } else {
-      $cpAiHelp.style.display = "none";
+      cpDom.aiHelp.style.display = "none";
     }
   }
 
   // AI Helper - call GLM for similar words
-  $cpAiBtn.addEventListener("click", async () => {
+  cpDom.aiBtn.addEventListener("click", async () => {
     const item = cpFlatItems[cpIdx];
     if (!item || item.type !== "word") return;
 
-    $cpAiBtn.disabled = true;
-    $cpAiLoading.style.display = "block";
-    $cpAiResult.style.display = "none";
+    cpDom.aiBtn.disabled = true;
+    cpDom.aiLoading.style.display = "block";
+    cpDom.aiResult.style.display = "none";
 
     const [similarWords, phonicsTip] = await Promise.all([
       glmSimilarWords(item.word),
       item.letter ? glmPhonicsHelp(item.letter, item.word) : Promise.resolve(null),
     ]);
 
-    $cpAiLoading.style.display = "none";
+    cpDom.aiLoading.style.display = "none";
 
     if (similarWords) {
-      $cpAiResult.style.display = "block";
-      $cpAiBtn.style.display = "none";
-      $cpAiWords.innerHTML = "";
+      cpDom.aiResult.style.display = "block";
+      cpDom.aiBtn.style.display = "none";
+      cpDom.aiWords.innerHTML = "";
       similarWords.forEach(w => {
         const tag = document.createElement("div");
         tag.className = "ai-word-tag";
-        tag.innerHTML = `<span class="ai-word-emoji">${w.emoji || "📝"}</span><span class="ai-word-en">${w.word}</span><span class="ai-word-cn">${w.cn}</span>`;
+        // Use textContent (not innerHTML) for AI-generated content — XSS defense
+        tag.innerHTML = `<span class="ai-word-emoji"></span><span class="ai-word-en"></span><span class="ai-word-cn"></span>`;
+        tag.querySelector(".ai-word-emoji").textContent = w.emoji || "📝";
+        tag.querySelector(".ai-word-en").textContent = w.word || "";
+        tag.querySelector(".ai-word-cn").textContent = w.cn || "";
         tag.addEventListener("click", () => { unlockIOSAudio(); speak(w.word, 0.7); });
-        $cpAiWords.appendChild(tag);
+        cpDom.aiWords.appendChild(tag);
       });
       if (phonicsTip) {
-        $cpAiTip.textContent = phonicsTip;
-        $cpAiTip.style.display = "block";
+        cpDom.aiTip.textContent = phonicsTip;
+        cpDom.aiTip.style.display = "block";
       } else {
-        $cpAiTip.style.display = "none";
+        cpDom.aiTip.style.display = "none";
       }
     } else {
-      $cpAiBtn.disabled = false;
-      $cpFbMsg.textContent += " (AI 暂时不可用)";
+      cpDom.aiBtn.disabled = false;
+      cpDom.fbMsg.textContent += " (AI 暂时不可用)";
     }
   });
 
   function cpNext() {
     cpIdx++;
     if (cpIdx >= cpFlatItems.length) cpResults();
-    else {
-      cpContrastPhase = "short";
-      cpShowItem();
-    }
+    else cpShowItem();
   }
 
   function cpResults() {
@@ -1425,18 +1422,18 @@
   }
 
   // Play buttons for contrast cards
-  document.getElementById("cp-short-play").addEventListener("click", () => {
+  cpDom.shortPlay.addEventListener("click", () => {
     unlockIOSAudio();
     const item = cpFlatItems[cpIdx];
     if (item && item.type === "contrast") speak(item.short.word, 0.65);
   });
-  document.getElementById("cp-long-play").addEventListener("click", () => {
+  cpDom.longPlay.addEventListener("click", () => {
     unlockIOSAudio();
     const item = cpFlatItems[cpIdx];
     if (item && item.type === "contrast") speak(item.long.word, 0.65);
   });
 
-  $cpPlay.addEventListener("click", () => {
+  cpDom.play.addEventListener("click", () => {
     unlockIOSAudio();
     const item = cpFlatItems[cpIdx];
     if (!item) return;
@@ -1444,15 +1441,15 @@
     else speak(item.word, 0.7);
   });
 
-  $cpRecBtn.addEventListener("click", () => cpDoRecord());
+  cpDom.recBtn.addEventListener("click", () => cpDoRecord());
 
-  document.getElementById("cp-retry").addEventListener("click", () => {
-    $cpFeedback.style.display = "none";
-    $cpRecBtn.style.display = "flex";
+  cpDom.retry.addEventListener("click", () => {
+    cpDom.feedback.style.display = "none";
+    cpDom.recBtn.style.display = "flex";
     const item = cpFlatItems[cpIdx];
     if (item.type === "contrast") {
       cpContrastPhase = "short";
-      $cpRecLabel.textContent = "读左边的词";
+      cpDom.recLabel.textContent = "读左边的词";
       speak(item.short.word, 0.65);
     } else if (item.type === "sentence") {
       speak(item.en, 0.7);
@@ -1461,9 +1458,9 @@
     }
   });
 
-  document.getElementById("cp-next").addEventListener("click", () => cpNext());
+  cpDom.next.addEventListener("click", () => cpNext());
 
-  document.getElementById("cp-back").addEventListener("click", () => {
+  $("cp-back").addEventListener("click", () => {
     window.speechSynthesis.cancel();
     if (cpLevel) buildCourseUnits(cpLevel);
     else showScreen("course");
