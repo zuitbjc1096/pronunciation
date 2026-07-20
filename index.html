@@ -1,18 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="英语练习">
-  <meta name="theme-color" content="#4a90d9">
+  <meta name="theme-color" content="#4a90d9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1f2e" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="1-10级分级课程、AI发音辅助、字母发音、看图说英语、日常对话，适合小学生">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self';
+                 style-src 'self' 'unsafe-inline';
+                 img-src 'self' data:;
+                 connect-src 'self' https://open.bigmodel.cn;
+                 media-src 'self' blob:;
+                 font-src 'self';">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.json">
-  <title>Kids English Practice</title>
+  <title>英语小课堂 - Kids English Practice</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
   <div id="app">
 
     <!-- ═══ 主菜单 ═══ -->
@@ -22,32 +34,38 @@
         <p class="subtitle">选择一个模块开始学习吧！</p>
       </div>
       <div class="menu-grid">
-        <button class="menu-card menu-card-featured" data-module="course">
-          <span class="menu-icon">📚</span>
+        <button class="menu-card menu-card-featured" data-module="course"
+                aria-label="分级课程，1到10级从易到难系统学习">
+          <span class="menu-icon" aria-hidden="true">📚</span>
           <div><span class="menu-title">分级课程</span>
           <span class="menu-desc">1-10级 从易到难系统学习</span></div>
-          <span class="menu-arrow">→</span>
+          <span class="menu-arrow" aria-hidden="true">→</span>
         </button>
-        <button class="menu-card" data-module="abc">
-          <span class="menu-icon">🔤</span>
+        <button class="menu-card" data-module="abc"
+                aria-label="ABC 发音，学习26个字母">
+          <span class="menu-icon" aria-hidden="true">🔤</span>
           <div><span class="menu-title">ABC 发音</span>
           <span class="menu-desc">学习26个字母</span></div>
         </button>
-        <button class="menu-card" data-module="quiz">
-          <span class="menu-icon">🧠</span>
+        <button class="menu-card" data-module="quiz"
+                aria-label="看图说英语，动物蔬果颜色">
+          <span class="menu-icon" aria-hidden="true">🧠</span>
           <div><span class="menu-title">看图说英语</span>
           <span class="menu-desc">动物蔬果颜色</span></div>
         </button>
-        <button class="menu-card" data-module="dialogue">
-          <span class="menu-icon">💬</span>
+        <button class="menu-card" data-module="dialogue"
+                aria-label="日常对话，场景跟读练习">
+          <span class="menu-icon" aria-hidden="true">💬</span>
           <div><span class="menu-title">日常对话</span>
           <span class="menu-desc">场景跟读练习</span></div>
         </button>
-        <button class="menu-card menu-card-mistakes" data-module="mistakes">
-          <span class="menu-icon">📝</span>
+        <button class="menu-card menu-card-mistakes" data-module="mistakes"
+                aria-label="错题集，复习做错的题目">
+          <span class="menu-icon" aria-hidden="true">📝</span>
           <div><span class="menu-title">错题集</span>
           <span class="menu-desc">复习做错的题目</span></div>
-          <span id="mistake-badge" class="mistake-badge" style="display:none"></span>
+          <span id="mistake-badge" class="mistake-badge" style="display:none"
+                role="status" aria-live="polite"></span>
         </button>
       </div>
     </div>
@@ -82,16 +100,18 @@
           <div id="word-text" class="word-text"></div>
           <button id="btn-play-word" class="btn-play">🔊 听一听</button>
         </div>
-        <button id="btn-record" class="btn-record">
-          <span class="mic-icon">🎤</span>
+        <button id="btn-record" class="btn-record" aria-label="点击开始录音">
+          <span class="mic-icon" aria-hidden="true">🎤</span>
           <span id="record-label">点击说话</span>
         </button>
-        <div id="recording-indicator" class="recording-indicator" style="display:none">
-          <div class="pulse-ring"></div>
+        <div id="recording-indicator" class="recording-indicator" style="display:none"
+             role="status" aria-live="polite">
+          <div class="pulse-ring" aria-hidden="true"></div>
           <p>正在听你说...</p>
         </div>
-        <div id="score-display" class="score-display" style="display:none">
-          <div id="score-stars" class="score-stars"></div>
+        <div id="score-display" class="score-display" style="display:none"
+             role="status" aria-live="polite">
+          <div id="score-stars" class="score-stars" aria-hidden="true"></div>
           <p id="score-message" class="score-message"></p>
           <button id="btn-retry-word" class="btn-secondary">再试一次 🔄</button>
           <button id="btn-next-word" class="btn-primary">下一个 →</button>

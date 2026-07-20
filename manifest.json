@@ -1,14 +1,41 @@
 {
+  "id": "/",
   "name": "英语小课堂",
   "short_name": "英语练习",
   "description": "1-10级分级课程、AI发音辅助、字母发音、看图说英语、日常对话，适合小学生",
+  "lang": "zh-CN",
+  "dir": "ltr",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f0f4ff",
   "theme_color": "#4a90d9",
+  "categories": ["education", "kids"],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "分级课程",
+      "short_name": "课程",
+      "description": "1-10级系统学习",
+      "url": "./index.html?module=course"
+    },
+    {
+      "name": "错题集",
+      "short_name": "错题",
+      "description": "复习做错的题目",
+      "url": "./index.html?module=mistakes"
+    },
+    {
+      "name": "ABC 发音",
+      "short_name": "ABC",
+      "description": "26个字母发音练习",
+      "url": "./index.html?module=abc"
+    }
   ]
 }

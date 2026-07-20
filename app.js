@@ -98,7 +98,8 @@
   }
 
   // FIX: doRecognition now calls onFallback when no speech detected (timeout with no result)
-  function doRecognition(onResult, onFallback, $recBtn, $recIndicator) {
+  // enhancement: distinguish permission-denied from other errors via a typed callback
+  function doRecognition(onResult, onFallback, $recBtn, $recIndicator, onPermissionDenied) {
     if (!hasSpeechRecognition) { onFallback(); return; }
 
     let rec, recording = true, gotResult = false;
@@ -127,11 +128,18 @@
       onResult(results);
     };
 
-    rec.onerror = () => {
+    rec.onerror = (ev) => {
       recording = false;
       if ($recIndicator) $recIndicator.style.display = "none";
       if ($recBtn) $recBtn.style.display = "flex";
-      onFallback();
+      // Distinguish permission denial from generic errors
+      const errType = ev && ev.error;
+      if (errType === "not-allowed" || errType === "service-not-allowed") {
+        if (onPermissionDenied) onPermissionDenied();
+        else onFallback();
+      } else {
+        onFallback();
+      }
     };
 
     rec.onend = () => {
@@ -148,6 +156,44 @@
 
     try { rec.start(); } catch (e) { onFallback(); return; }
     setTimeout(() => { if (recording) { try { rec.stop(); } catch(e){} } }, 5000);
+  }
+
+  // ═══════════════════════════════════
+  //  Toast notifications (global feedback UI)
+  // ═══════════════════════════════════
+
+  function ensureToastContainer() {
+    let el = document.getElementById("toast-container");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "toast-container";
+      el.className = "toast-container";
+      el.setAttribute("aria-live", "polite");
+      el.setAttribute("aria-atomic", "true");
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function showToast(message, type = "info", duration = 3000) {
+    const container = ensureToastContainer();
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), duration);
+  }
+
+  // Standardized handler shown to the user when mic permission is denied
+  function handleMicDenied() {
+    showToast("🎤 麦克风被禁用，已切换到家长打分模式", "warning", 3500);
+    // Show a one-time banner-style hint (less intrusive than alert)
+    if (!sessionStorage.getItem("micPermHintShown")) {
+      sessionStorage.setItem("micPermHintShown", "1");
+      setTimeout(() => {
+        showToast("💡 提示：去系统设置 → 浏览器 → 开启麦克风权限，即可用语音识别", "info", 5000);
+      }, 3600);
+    }
   }
 
   function renderManualScore(container, onScore) {
@@ -391,7 +437,8 @@
     doRecognition(
       (results) => abcFinish(calcScore(results, target)),
       () => abcManualScore(),
-      $btnRecord, $recIndicator
+      $btnRecord, $recIndicator,
+      handleMicDenied
     );
   }
 
@@ -574,7 +621,8 @@
     doRecognition(
       (results) => quizShowFeedback(calcScore(results, item.en)),
       () => manualFallbackUI(quizDom, (s) => quizShowFeedback(s)),
-      quizDom.recBtn, quizDom.recInd
+      quizDom.recBtn, quizDom.recInd,
+      handleMicDenied
     );
   }
 
@@ -722,7 +770,8 @@
     doRecognition(
       (results) => dlgShowFeedback(calcScore(results, item.en)),
       () => manualFallbackUI(dlgDom, (s) => dlgShowFeedback(s)),
-      dlgDom.recBtn, dlgDom.recInd
+      dlgDom.recBtn, dlgDom.recInd,
+      handleMicDenied
     );
   }
 
@@ -933,7 +982,8 @@
     doRecognition(
       (results) => mpShowFeedback(calcScore(results, target)),
       () => manualFallbackUI(mpDom, (s) => mpShowFeedback(s)),
-      mpDom.recBtn, mpDom.recInd
+      mpDom.recBtn, mpDom.recInd,
+      handleMicDenied
     );
   }
 
@@ -1261,7 +1311,8 @@
         }
       },
       () => cpManualFallback(),
-      cpDom.recBtn, cpDom.recInd
+      cpDom.recBtn, cpDom.recInd,
+      handleMicDenied
     );
   }
 
@@ -1340,6 +1391,7 @@
     } else {
       cpDom.aiBtn.disabled = false;
       cpDom.fbMsg.textContent += " (AI 暂时不可用)";
+      showToast("🤖 AI 暂时不可用，请稍后再试", "error");
     }
   });
 
@@ -1476,6 +1528,26 @@
   }
 
   updateMistakeBadge();
+
+  // Show a one-time banner if speech recognition is not supported in this browser
+  if (!hasSpeechRecognition) {
+    setTimeout(() => {
+      showToast("ℹ️ 当前浏览器不支持语音识别，将使用家长打分模式", "info", 5000);
+    }, 800);
+  }
+
+  // Deep-link support: ?module=course|mistakes|abc opens that module directly
+  // (used by PWA manifest shortcuts for quick access)
+  (function handleDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const mod = params.get("module");
+    if (!mod) return;
+    const card = document.querySelector(`.menu-card[data-module="${mod}"]`);
+    if (card) {
+      // Defer until after init so screen management is ready
+      setTimeout(() => card.click(), 100);
+    }
+  })();
 
   document.addEventListener("touchend", (e) => {
     if (e.target.closest("button")) {
